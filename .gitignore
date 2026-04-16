@@ -7,8 +7,6 @@ include/
 
 chroma_db/
 
-docs/*.pdf
-
 .env
 
 __pycache__/
