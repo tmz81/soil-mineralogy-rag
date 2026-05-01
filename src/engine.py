@@ -67,7 +67,12 @@ class MineralogyEngine:
         prompt = f"Gere 3 variações técnicas e sinônimas (em português e inglês) da seguinte pergunta sobre mineralogia do solo para melhorar a busca em PDFs: '{question}'. Retorne apenas as perguntas separadas por linha."
         try:
             variations_res = await self.llm.ainvoke(prompt)
-            new_queries = variations_res.content.strip().split("\n")
+            # Garante que tratamos o conteúdo como string
+            content = variations_res.content if hasattr(variations_res, 'content') else str(variations_res)
+            if isinstance(content, list):
+                content = "\n".join([str(item) for item in content])
+            
+            new_queries = content.strip().split("\n")
             queries.extend([q.strip() for q in new_queries if q.strip()])
         except Exception as e:
             print(f"[AVISO] Falha na expansão de query: {e}")
