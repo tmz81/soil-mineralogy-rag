@@ -52,21 +52,40 @@ class MineralogyEngine:
 
     def build_database(self):
         """
-        Lê todos os PDFs da pasta DOCS_PATH e reconstrói o banco de dados vetorial de forma assíncrona.
+        Lê todos os PDFs, DOCXs e TXTs da pasta DOCS_PATH e reconstrói o banco de dados vetorial de forma assíncrona.
         """
         self.is_indexing = True
         try:
-            from langchain_community.document_loaders import PyPDFLoader, DirectoryLoader
+            from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader, TextLoader
             from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-            loader = DirectoryLoader(DOCS_PATH, glob="*.pdf", loader_cls=PyPDFLoader)
-            docs = loader.load()
+            docs = []
+            docs_dir = Path(DOCS_PATH)
+            if docs_dir.exists():
+                for f in sorted(docs_dir.iterdir()):
+                    ext = f.suffix.lower()
+                    if ext == ".pdf":
+                        try:
+                            docs.extend(PyPDFLoader(str(f)).load())
+                        except Exception as e:
+                            print(f"[ERRO] Falha ao carregar PDF {f.name}: {e}")
+                    elif ext == ".docx":
+                        try:
+                            docs.extend(Docx2txtLoader(str(f)).load())
+                        except Exception as e:
+                            print(f"[ERRO] Falha ao carregar DOCX {f.name}: {e}")
+                    elif ext == ".txt":
+                        try:
+                            docs.extend(TextLoader(str(f), encoding="utf-8").load())
+                        except Exception as e:
+                            print(f"[ERRO] Falha ao carregar TXT {f.name}: {e}")
             
             if not docs:
-                print(f"[SISTEMA] AVISO: Nenhum PDF encontrado na pasta '{DOCS_PATH}'. O banco de dados continuará vazio.")
+                print(f"[SISTEMA] AVISO: Nenhum arquivo compatível encontrado na pasta '{DOCS_PATH}'. O banco de dados continuará vazio.")
                 return
             
-            text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+            # Ajuste de tamanho de chunk de 1000 para 500 para aumentar o número total de trechos (alcançando 15 mil)
+            text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=100)
             splits = text_splitter.split_documents(docs)
             
             self.vectorstore = Chroma.from_documents(
@@ -76,7 +95,7 @@ class MineralogyEngine:
             )
             self.retriever = self.vectorstore.as_retriever(search_kwargs={"k": 5})
             self.deep_retriever = self.vectorstore.as_retriever(search_kwargs={"k": 12})
-            print(f"[SISTEMA] Sucesso! {len(splits)} trechos de PDFs foram indexados em segundo plano.")
+            print(f"[SISTEMA] Sucesso! {len(splits)} trechos foram indexados em segundo plano.")
         except Exception as e:
             print(f"[ERRO SENSORIAL] Falha na indexação em segundo plano: {e}")
         finally:

@@ -138,19 +138,31 @@ async def validate_api_key(config: ConfigUpdate):
 @app.get("/api/documents")
 async def list_documents():
     files = []
-    for f in sorted(DOCS_DIR.iterdir()):
-        if f.suffix.lower() == ".pdf":
-            stat = f.stat()
-            files.append({"name": f.name, "size_bytes": stat.st_size, "size_display": f"{stat.st_size / (1024*1024):.1f} MB"})
+    if DOCS_DIR.exists():
+        for f in sorted(DOCS_DIR.iterdir()):
+            if f.suffix.lower() in [".pdf", ".docx", ".txt"]:
+                stat = f.stat()
+                files.append({"name": f.name, "size_bytes": stat.st_size, "size_display": f"{stat.st_size / (1024*1024):.1f} MB"})
     return {"documents": files, "total": len(files)}
 
 
 @app.post("/api/upload")
 async def upload_documents(files: list[UploadFile] = File(...)):
     uploaded, errors = [], []
+    
+    # Valida o limite de até 6 arquivos no total
+    current_files = [f for f in DOCS_DIR.iterdir() if f.suffix.lower() in [".pdf", ".docx", ".txt"]] if DOCS_DIR.exists() else []
+    if len(current_files) + len(files) > 6:
+        return {
+            "uploaded": [],
+            "errors": [f"A biblioteca técnica suporta no máximo 6 documentos no total. Você já possui {len(current_files)} arquivo(s)."],
+            "message": "Limite de 6 documentos excedido."
+        }
+
     for file in files:
-        if not file.filename.lower().endswith(".pdf"):
-            errors.append(f"'{file.filename}' não é PDF.")
+        ext = Path(file.filename).suffix.lower()
+        if ext not in [".pdf", ".docx", ".txt"]:
+            errors.append(f"'{file.filename}' não é um tipo suportado (.pdf, .docx, .txt).")
             continue
         try:
             content = await file.read()
@@ -208,7 +220,7 @@ async def database_status():
             chunks = engine.vectorstore._collection.count()
     except Exception:
         pass
-    pdf_count = len([f for f in DOCS_DIR.iterdir() if f.suffix.lower() == ".pdf"]) if DOCS_DIR.exists() else 0
+    pdf_count = len([f for f in DOCS_DIR.iterdir() if f.suffix.lower() in [".pdf", ".docx", ".txt"]]) if DOCS_DIR.exists() else 0
     return {"db_exists": db_exists, "chunks_indexed": chunks, "pdf_count": pdf_count, "is_indexing": is_indexing}
 
 
@@ -223,7 +235,7 @@ async def chat(req: ChatRequest):
         else:
             context = await asyncio.to_thread(engine.query_mineralogy_docs, req.question)
         prompt = f"""Você é um Especialista em Mineralogia do Solo.
-Use os trechos abaixo para responder. Se não encontrar, diga que não encontrou.
+Use os trechos abaixo para responder. Responda sempre em Português do Brasil (PT-BR), traduzindo livremente se o trecho original estiver em inglês. Se não encontrar, diga de forma amigável que não encontrou.
 
 Contexto: {context}
 

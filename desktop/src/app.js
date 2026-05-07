@@ -36,6 +36,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   initDebugOverlay();
   loadConfig();
   loadDbStatus();
+  setInterval(loadDbStatus, 3000);
   loadDocuments();
 });
 
@@ -697,6 +698,21 @@ async function loadDbStatus() {
       document.getElementById('stat-status').textContent = '🔄 Indexando...';
     } else {
       document.getElementById('stat-status').textContent = data.db_exists ? '🟢' : '🔴';
+    }
+
+    const micBtn = document.getElementById('btn-mic');
+    if (micBtn) {
+      if (data.is_indexing || !data.db_exists || data.chunks_indexed === 0) {
+        micBtn.disabled = true;
+        micBtn.style.opacity = '0.4';
+        micBtn.style.pointerEvents = 'none';
+        micBtn.title = 'Aguarde a indexação da biblioteca técnica para conversar.';
+      } else {
+        micBtn.disabled = false;
+        micBtn.style.opacity = '1';
+        micBtn.style.pointerEvents = 'auto';
+        micBtn.title = 'Iniciar Conversação de Voz';
+      }
     }
   } catch { document.getElementById('stat-status').textContent = '⚠️'; }
 }
