@@ -80,7 +80,8 @@ class MineralogyEngine:
         queries = [question]
         prompt = f"Gere 3 variações técnicas e sinônimas (em português e inglês) da seguinte pergunta sobre mineralogia do solo para melhorar a busca em PDFs: '{question}'. Retorne apenas as perguntas separadas por linha."
         try:
-            variations_res = await self.llm.ainvoke(prompt)
+            # Timeout estrito de 1.5 segundos para evitar travamentos devido a limites de cota (429) ou lentidão de rede
+            variations_res = await asyncio.wait_for(self.llm.ainvoke(prompt), timeout=1.5)
             # Garante que tratamos o conteúdo como string
             content = variations_res.content if hasattr(variations_res, 'content') else str(variations_res)
             if isinstance(content, list):
@@ -88,8 +89,10 @@ class MineralogyEngine:
             
             new_queries = content.strip().split("\n")
             queries.extend([q.strip() for q in new_queries if q.strip()])
+        except asyncio.TimeoutError:
+            print("[AVISO] Timeout na expansão de query. Continuando com busca simples...")
         except Exception as e:
-            print(f"[AVISO] Falha na expansão de query: {e}")
+            print(f"[AVISO] Falha na expansão de query ({e}). Continuando com busca simples...")
 
         all_docs = []
         for q in queries:
