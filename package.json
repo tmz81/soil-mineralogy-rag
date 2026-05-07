@@ -1,0 +1,13 @@
+{
+  "name": "soil-mineralogy-rag-root",
+  "version": "1.0.0",
+  "description": "Soil Mineralogy AI - Multimodal Live RAG (Root Workspace)",
+  "scripts": {
+    "start": "npm --prefix desktop run start",
+    "dev": "npm --prefix desktop run dev",
+    "build:linux": "npm --prefix desktop run build:linux",
+    "build:win": "npm --prefix desktop run build:win",
+    "build:mac": "npm --prefix desktop run build:mac",
+    "postinstall": "npm install --prefix desktop"
+  }
+}

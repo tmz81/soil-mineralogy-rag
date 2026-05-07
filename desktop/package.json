@@ -1,0 +1,50 @@
+{
+  "name": "soil-mineralogy-rag",
+  "version": "1.0.0",
+  "description": "Soil Mineralogy AI - Desktop App com RAG Multimodal",
+  "author": {
+    "name": "Soil Mineralogy Team",
+    "email": "contact@soilmineralogy.com"
+  },
+  "homepage": "https://github.com/tmz81/soil-mineralogy-rag",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron . --no-sandbox",
+    "dev": "electron . --dev --no-sandbox",
+    "build:linux": "electron-builder --linux",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac"
+  },
+  "build": {
+    "appId": "com.soilmineralogy.rag",
+    "productName": "Soil Mineralogy AI",
+    "icon": "src/assets/icon.png",
+    "directories": {
+      "output": "dist"
+    },
+    "linux": {
+      "target": ["AppImage", "deb"],
+      "category": "Science",
+      "icon": "build/icons"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "target": "dmg"
+    },
+    "extraResources": [
+      {
+        "from": "../dist/soil_backend",
+        "to": "backend"
+      }
+    ]
+  },
+  "dependencies": {
+    "electron-store": "^8.1.0"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  }
+}

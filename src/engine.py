@@ -1,5 +1,6 @@
 import os
 import asyncio
+from pathlib import Path
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
@@ -7,7 +8,17 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-DB_PATH = "./chroma_db"
+import sys
+
+# Caminhos base (Suporte para executável empacotado em sistema de arquivos Read-Only como AppImage)
+if getattr(sys, 'frozen', False):
+    BASE_DIR = Path.home() / ".soil-mineralogy-rag"
+    BASE_DIR.mkdir(exist_ok=True, parents=True)
+else:
+    BASE_DIR = Path(__file__).resolve().parent.parent
+
+DB_PATH = str(BASE_DIR / "chroma_db")
+DOCS_PATH = str(BASE_DIR / "docs")
 
 from langchain_community.document_loaders import PyPDFLoader, DirectoryLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -15,23 +26,26 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 class MineralogyEngine:
     def __init__(self):
         self.embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-        # Usando o ID correto para a v1beta e LangChain
         self.llm = ChatGoogleGenerativeAI(model="gemini-flash-latest")
         
-        # Cria a pasta docs se não existir
-        os.makedirs("./docs", exist_ok=True)
+        os.makedirs(DOCS_PATH, exist_ok=True)
         
-        # Verifica se o banco de dados já existe
-        if os.path.exists(DB_PATH) and os.path.isdir(DB_PATH) and os.listdir(DB_PATH):
-            self.vectorstore = Chroma(persist_directory=DB_PATH, embedding_function=self.embeddings)
+        self.vectorstore = Chroma(persist_directory=DB_PATH, embedding_function=self.embeddings)
+        
+        try:
+            doc_count = self.vectorstore._collection.count()
+        except Exception:
+            doc_count = 0
+
+        if doc_count > 0:
+            print(f"[SISTEMA] Banco de dados carregado com sucesso. {doc_count} trechos disponíveis.")
         else:
-            print("\n[SISTEMA] Primeira execução detectada! Lendo PDFs da pasta 'docs' e construindo o banco de dados local...")
-            loader = DirectoryLoader("./docs", glob="*.pdf", loader_cls=PyPDFLoader)
+            print(f"\n[SISTEMA] Banco de dados vazio! Lendo PDFs da pasta '{DOCS_PATH}' e construindo o banco de dados local...")
+            loader = DirectoryLoader(DOCS_PATH, glob="*.pdf", loader_cls=PyPDFLoader)
             docs = loader.load()
             
             if not docs:
-                print("[SISTEMA] AVISO: Nenhum PDF encontrado na pasta 'docs'. O banco de dados estará vazio.")
-                self.vectorstore = Chroma(persist_directory=DB_PATH, embedding_function=self.embeddings)
+                print(f"[SISTEMA] AVISO: Nenhum PDF encontrado na pasta '{DOCS_PATH}'. O banco de dados estará vazio.")
             else:
                 text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
                 splits = text_splitter.split_documents(docs)

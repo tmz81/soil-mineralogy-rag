@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Soil Mineralogy AI</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="app">
+  <!-- ═══ Sidebar ═══ -->
+  <aside class="sidebar">
+    <div class="sidebar-logo" title="Soil Mineralogy AI"><img src="assets/icon.png" alt="Logo" style="width: 100%; height: 100%; object-fit: cover; border-radius: inherit;"></div>
+    <div class="sidebar-spacer"></div>
+    <nav class="sidebar-nav">
+      <button class="nav-btn active" data-page="voice" title="Conversa com Zé">🎙️</button>
+      <button class="nav-btn" data-page="library" title="Biblioteca de PDFs">📚</button>
+      <button class="nav-btn" data-page="settings" title="Configurações">⚙️</button>
+      <button class="nav-btn" id="btn-theme-toggle" title="Alternar Tema">☀️</button>
+    </nav>
+    <div class="sidebar-spacer"></div>
+  </aside>
+
+  <!-- ═══ Title Bar ═══ -->
+  <div class="titlebar" id="titlebar">
+    <span class="titlebar-text">Soil Mineralogy AI</span>
+  </div>
+
+  <!-- ═══ Content ═══ -->
+  <main class="content">
+
+    <!-- ── Voice Page (CORE) ── -->
+    <section class="page active" id="page-voice">
+      <div class="voice-container">
+        <!-- Status area -->
+        <div class="voice-status" id="voice-status">
+          <span class="voice-status-dot"></span>
+          <span class="voice-status-text">Clique no microfone para iniciar</span>
+        </div>
+
+        <!-- Central orb visualization -->
+        <div class="voice-orb-wrapper">
+          <div class="voice-orb" id="voice-orb">
+            <div class="orb-ring ring-1"></div>
+            <div class="orb-ring ring-2"></div>
+            <div class="orb-ring ring-3"></div>
+            <div class="orb-core">
+              <span class="orb-emoji">🪨</span>
+            </div>
+          </div>
+          <!-- Audio wave bars -->
+          <div class="wave-bars" id="wave-bars">
+            <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
+            <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
+            <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
+            <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
+            <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
+            <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
+            <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
+          </div>
+        </div>
+
+        <!-- Zé identity -->
+        <div class="voice-identity">
+          <h2 class="voice-name">Zé</h2>
+          <p class="voice-role">Especialista em Mineralogia do Solo</p>
+        </div>
+
+        <!-- Transcript feed -->
+        <div class="voice-transcript" id="voice-transcript"></div>
+
+        <!-- Tool call indicator -->
+        <div class="voice-tool-indicator" id="voice-tool-indicator" style="display:none;">
+          <span class="spinner"></span>
+          <span id="voice-tool-text">Consultando biblioteca técnica...</span>
+        </div>
+
+        <!-- Controls -->
+        <div class="voice-controls">
+          <button class="mic-btn" id="btn-mic" title="Iniciar conversa">
+            <span class="mic-icon" id="mic-icon">🎙️</span>
+          </button>
+          <button class="voice-ctrl-btn" id="btn-stop-voice" title="Encerrar sessão" style="display:none;">⏹️</button>
+        </div>
+        <p class="voice-hint" id="voice-hint">Pressione para conversar com Zé sobre mineralogia</p>
+      </div>
+    </section>
+
+    <!-- ── Library Page ── -->
+    <section class="page" id="page-library">
+      <div class="page-header">
+        <h1 class="page-title">Biblioteca de PDFs</h1>
+        <p class="page-subtitle">Importe e gerencie seus documentos técnicos</p>
+      </div>
+      <div class="card" style="margin-bottom: 20px;">
+        <div class="upload-zone" id="upload-zone">
+          <div class="upload-icon">📄</div>
+          <div class="upload-text">Arraste PDFs aqui ou clique para selecionar</div>
+          <div class="upload-hint">Formatos aceitos: .pdf</div>
+        </div>
+        <input type="file" id="file-input" multiple accept=".pdf" style="display:none;">
+      </div>
+      <div class="card">
+        <div class="card-title"><span class="icon">📂</span> Documentos Carregados <span id="doc-count" style="color:var(--text-muted);font-weight:400;font-size:13px;"></span></div>
+        <div id="doc-list" class="doc-list">
+          <div class="empty-state"><div class="empty-icon">📭</div><div class="empty-text">Nenhum PDF carregado</div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Settings Page ── -->
+    <section class="page" id="page-settings">
+      <div class="page-header">
+        <h1 class="page-title">Configurações</h1>
+        <p class="page-subtitle">Configure sua chave de API e gerencie o sistema</p>
+      </div>
+      <div class="settings-grid">
+        <div class="card">
+          <div class="card-title"><span class="icon">🔑</span> Google API Key</div>
+          <div class="input-group">
+            <label class="input-label">Sua Chave de Acesso ao Gemini</label>
+            <div class="input-field">
+              <input type="password" id="input-api-key" placeholder="AIza..." autocomplete="off" spellcheck="false">
+              <button class="toggle-vis" id="btn-toggle-key" title="Mostrar/Ocultar">👁️</button>
+            </div>
+            <div class="input-actions">
+              <button class="btn btn-primary" id="btn-save-key">💾 Salvar Chave</button>
+              <button class="btn btn-secondary" id="btn-validate-key">🔍 Validar</button>
+            </div>
+            <div id="key-status"></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title"><span class="icon">🧠</span> Banco de Dados Vetorial</div>
+          <div class="db-stats">
+            <div class="stat-box"><div class="stat-value" id="stat-pdfs">-</div><div class="stat-label">PDFs</div></div>
+            <div class="stat-box"><div class="stat-value" id="stat-chunks">-</div><div class="stat-label">Trechos</div></div>
+            <div class="stat-box"><div class="stat-value" id="stat-status">-</div><div class="stat-label">Status</div></div>
+          </div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <button class="btn btn-primary" id="btn-reindex">🔄 Reindexar Biblioteca</button>
+            <button class="btn btn-danger btn-sm" id="btn-reset-db">🗑️ Resetar Banco</button>
+          </div>
+          <div class="progress-bar" id="index-progress" style="display:none;"><div class="progress-fill"></div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Debug Overlay ── -->
+    <div id="debug-overlay" class="debug-overlay" style="display: none;">
+      <div class="debug-header">
+        <span class="debug-title">🛠️ Monitoramento Avançado</span>
+        <button class="debug-close" onclick="document.getElementById('debug-overlay').style.display='none'">✖</button>
+      </div>
+      <div class="debug-content" id="debug-content">
+        <div class="debug-log-sys">Aguardando eventos...</div>
+      </div>
+      <div class="debug-footer">
+        <span>Websocket: <span id="debug-ws-status" style="color:var(--accent-rose)">Off</span></span>
+        <span>RAG Calls: <span id="debug-rag-calls">0</span></span>
+        <span>Áudio: <span id="debug-audio-status">Idle</span></span>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<div class="toast-container" id="toast-container"></div>
+<script src="app.js"></script>
+</body>
+</html>
