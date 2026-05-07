@@ -545,9 +545,14 @@ async function selectFilesElectron() {
     const paths = await window.electronAPI.selectFiles();
     if (!paths?.length) return;
     const formData = new FormData();
+    const LIMIT = 200 * 1024 * 1024; // 200MB
     for (const filePath of paths) {
       const res = await fetch(`file://${filePath}`);
       const blob = await res.blob();
+      if (blob.size > LIMIT) {
+        toast(`O arquivo "${filePath.split('/').pop().split('\\').pop()}" excede o limite máximo permitido de 200 MB.`, 'error');
+        return;
+      }
       formData.append('files', blob, filePath.split('/').pop().split('\\').pop());
     }
     await uploadFormData(formData);
@@ -556,7 +561,14 @@ async function selectFilesElectron() {
 
 async function uploadFiles(fileList) {
   const formData = new FormData();
-  for (const file of fileList) formData.append('files', file);
+  const LIMIT = 200 * 1024 * 1024; // 200MB
+  for (const file of fileList) {
+    if (file.size > LIMIT) {
+      toast(`O arquivo "${file.name}" excede o limite máximo permitido de 200 MB.`, 'error');
+      return;
+    }
+    formData.append('files', file);
+  }
   await uploadFormData(formData);
 }
 
@@ -681,6 +693,10 @@ async function loadDbStatus() {
     const data = await api('/api/db-status');
     document.getElementById('stat-pdfs').textContent = data.pdf_count;
     document.getElementById('stat-chunks').textContent = data.chunks_indexed;
-    document.getElementById('stat-status').textContent = data.db_exists ? '🟢' : '🔴';
+    if (data.is_indexing) {
+      document.getElementById('stat-status').textContent = '🔄 Indexando...';
+    } else {
+      document.getElementById('stat-status').textContent = data.db_exists ? '🟢' : '🔴';
+    }
   } catch { document.getElementById('stat-status').textContent = '⚠️'; }
 }

@@ -1,5 +1,6 @@
 import os
 import asyncio
+import threading
 from pathlib import Path
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from langchain_huggingface import HuggingFaceEmbeddings
@@ -37,28 +38,49 @@ class MineralogyEngine:
         except Exception:
             doc_count = 0
 
+        self.is_indexing = False
+
         if doc_count > 0:
             print(f"[SISTEMA] Banco de dados carregado com sucesso. {doc_count} trechos disponíveis.")
         else:
-            print(f"\n[SISTEMA] Banco de dados vazio! Lendo PDFs da pasta '{DOCS_PATH}' e construindo o banco de dados local...")
+            print(f"\n[SISTEMA] Banco de dados vazio! Iniciando indexação em segundo plano dos PDFs de '{DOCS_PATH}'...")
+            self.is_indexing = True
+            threading.Thread(target=self.build_database, daemon=True).start()
+                
+        self.retriever = self.vectorstore.as_retriever(search_kwargs={"k": 5})
+        self.deep_retriever = self.vectorstore.as_retriever(search_kwargs={"k": 12})
+
+    def build_database(self):
+        """
+        Lê todos os PDFs da pasta DOCS_PATH e reconstrói o banco de dados vetorial de forma assíncrona.
+        """
+        self.is_indexing = True
+        try:
+            from langchain_community.document_loaders import PyPDFLoader, DirectoryLoader
+            from langchain_text_splitters import RecursiveCharacterTextSplitter
+
             loader = DirectoryLoader(DOCS_PATH, glob="*.pdf", loader_cls=PyPDFLoader)
             docs = loader.load()
             
             if not docs:
-                print(f"[SISTEMA] AVISO: Nenhum PDF encontrado na pasta '{DOCS_PATH}'. O banco de dados estará vazio.")
-            else:
-                text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-                splits = text_splitter.split_documents(docs)
-                
-                self.vectorstore = Chroma.from_documents(
-                    documents=splits, 
-                    embedding=self.embeddings, 
-                    persist_directory=DB_PATH
-                )
-                print(f"[SISTEMA] Sucesso! {len(splits)} trechos de PDFs foram indexados.")
-                
-        self.retriever = self.vectorstore.as_retriever(search_kwargs={"k": 5})
-        self.deep_retriever = self.vectorstore.as_retriever(search_kwargs={"k": 12})
+                print(f"[SISTEMA] AVISO: Nenhum PDF encontrado na pasta '{DOCS_PATH}'. O banco de dados continuará vazio.")
+                return
+            
+            text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+            splits = text_splitter.split_documents(docs)
+            
+            self.vectorstore = Chroma.from_documents(
+                documents=splits, 
+                embedding=self.embeddings, 
+                persist_directory=DB_PATH
+            )
+            self.retriever = self.vectorstore.as_retriever(search_kwargs={"k": 5})
+            self.deep_retriever = self.vectorstore.as_retriever(search_kwargs={"k": 12})
+            print(f"[SISTEMA] Sucesso! {len(splits)} trechos de PDFs foram indexados em segundo plano.")
+        except Exception as e:
+            print(f"[ERRO SENSORIAL] Falha na indexação em segundo plano: {e}")
+        finally:
+            self.is_indexing = False
 
     def query_mineralogy_docs(self, question: str) -> str:
         """

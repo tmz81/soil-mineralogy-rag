@@ -33,9 +33,28 @@ else:
 DOCS_DIR = BASE_DIR / "docs"
 CHROMA_DIR = BASE_DIR / "chroma_db"
 ENV_FILE = BASE_DIR / ".env"
+ENV_EXAMPLE = BASE_DIR / "env.example"
+
+# Cria automaticamente o .env se não existir
+if not ENV_FILE.exists():
+    if ENV_EXAMPLE.exists():
+        shutil.copy(str(ENV_EXAMPLE), str(ENV_FILE))
+        print(f"\n[SISTEMA] Arquivo '.env' criado automaticamente com base em 'env.example'.")
+    else:
+        ENV_FILE.touch()
+        print(f"\n[SISTEMA] Arquivo '.env' criado em branco.")
 
 DOCS_DIR.mkdir(exist_ok=True, parents=True)
 load_dotenv(ENV_FILE)
+
+# Aviso proeminente no console se a chave estiver ausente
+api_key = os.environ.get("GOOGLE_API_KEY", "")
+if not api_key:
+    print("\n" + "!"*80)
+    print("[AVISO] A chave 'GOOGLE_API_KEY' não está configurada no arquivo '.env'!")
+    print("O RAG Multimodal Live de Voz não funcionará até que você configure esta chave.")
+    print("Configure-a na aba Configurações no painel do Electron ou edite o arquivo '.env'.")
+    print("!"*80 + "\n")
 
 logger = logging.getLogger("soil-rag")
 
@@ -135,6 +154,9 @@ async def upload_documents(files: list[UploadFile] = File(...)):
             continue
         try:
             content = await file.read()
+            if len(content) > 200 * 1024 * 1024:
+                errors.append(f"O arquivo '{file.filename}' excede o limite máximo permitido de 200 MB.")
+                continue
             (DOCS_DIR / file.filename).write_bytes(content)
             uploaded.append({"name": file.filename, "size_display": f"{len(content)/(1024*1024):.1f} MB"})
         except Exception as e:
@@ -178,14 +200,16 @@ async def reset_database():
 async def database_status():
     db_exists = CHROMA_DIR.exists() and any(CHROMA_DIR.iterdir()) if CHROMA_DIR.exists() else False
     chunks = 0
-    if db_exists:
-        try:
-            engine = await get_engine()
+    is_indexing = False
+    try:
+        engine = await get_engine()
+        is_indexing = getattr(engine, "is_indexing", False)
+        if db_exists and not is_indexing:
             chunks = engine.vectorstore._collection.count()
-        except Exception:
-            pass
+    except Exception:
+        pass
     pdf_count = len([f for f in DOCS_DIR.iterdir() if f.suffix.lower() == ".pdf"]) if DOCS_DIR.exists() else 0
-    return {"db_exists": db_exists, "chunks_indexed": chunks, "pdf_count": pdf_count}
+    return {"db_exists": db_exists, "chunks_indexed": chunks, "pdf_count": pdf_count, "is_indexing": is_indexing}
 
 
 # ─── Chat Endpoint ──────────────────────────────────────────────────────────
@@ -311,6 +335,12 @@ async def voice_session(ws: WebSocket):
         await ws.close()
         return
 
+    # Se a engine estiver indexando (p. ex. na 1ª execução), aguarda a indexação terminar
+    if getattr(engine, "is_indexing", False):
+        await ws.send_json({"type": "status", "message": "Indexando biblioteca técnica pela primeira vez... Por favor, aguarde..."})
+        while getattr(engine, "is_indexing", False):
+            await asyncio.sleep(1.0)
+
     client = genai.Client(api_key=api_key)
     config = _build_live_config()
     is_running = True
@@ -343,7 +373,8 @@ async def voice_session(ws: WebSocket):
                         break
                     except Exception as e:
                         logger.error(f"[Voice WS] Erro recebendo do browser: {e}")
-                        continue
+                        is_running = False
+                        break
 
             # ── Task: Receber respostas do Gemini e enviar ao browser ────
             async def forward_gemini_responses():
@@ -402,7 +433,10 @@ async def voice_session(ws: WebSocket):
                     except Exception as e:
                         if is_running:
                             logger.error(f"[Voice WS] Erro Gemini: {e}")
-                            await ws.send_json({"type": "error", "message": str(e)})
+                            try:
+                                await ws.send_json({"type": "error", "message": str(e)})
+                            except: pass
+                        is_running = False
                         break
 
             # Rodar ambas as tasks em paralelo

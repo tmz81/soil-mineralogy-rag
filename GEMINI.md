@@ -1,35 +1,44 @@
 # 🌍 Soil Mineralogy AI - Multimodal Live RAG
 
-Este projeto implementa um sistema avançado de RAG (Retrieval-Augmented Generation) focado em Mineralogia do Solo, utilizando a API Multimodal Live do Google Gemini para interações de voz em tempo real e LangChain com ChromaDB para recuperação de documentos técnicos.
+Este repositório contém um ecossistema avançado de RAG (Retrieval-Augmented Generation) especializado em Mineralogia do Solo. O sistema integra a API Multimodal Live do Google Gemini para interações de voz em tempo real e processamento local de documentos técnicos para máxima precisão e performance.
 
 ## 🚀 Visão Geral do Projeto
 
-A arquitetura do projeto é dividida em dois fluxos principais:
-1.  **Multimodal Live RAG:** Permite conversar com a IA usando voz, com o Gemini consultando PDFs locais em tempo real.
-2.  **Text-based CLI RAG:** Uma interface de texto via terminal para consultas rápidas e detalhadas nos documentos.
+A arquitetura é modular e oferece três formas principais de interação com a base de conhecimento (PDFs técnicos na pasta `docs/`):
+
+1.  **Multimodal Live RAG (Voz):** Conversação fluida por áudio com a especialista "Zé", utilizando `gemini-3.1-flash-live-preview`.
+2.  **Desktop App (Electron):** Uma interface visual moderna que gerencia documentos, configurações e sessões de voz/texto através de um backend FastAPI.
+3.  **CLI Text RAG:** Interface de terminal para consultas rápidas de texto puro.
 
 ### Tecnologias Principais
-- **LLM:** Google Gemini (`gemini-3.1-flash-live-preview` e `gemini-flash-latest`)
-- **Orquestração:** LangChain
-- **Banco de Vetores:** ChromaDB (Persistência local em `./chroma_db`)
-- **Embeddings:** HuggingFace `all-MiniLM-L6-v2` (Execução local)
-- **Áudio:** PyAudio e `google-genai` Multimodal Live API
+- **LLMs:** Google Gemini (`gemini-3.1-flash-live-preview` e `gemini-flash-latest`).
+- **Orquestração RAG:** LangChain.
+- **Banco de Vetores:** ChromaDB (Persistência local em `./chroma_db`).
+- **Embeddings:** HuggingFace `all-MiniLM-L6-v2` (Execução local em CPU/GPU).
+- **Backend:** FastAPI (Servidor REST e WebSocket bridge).
+- **Frontend/Desktop:** Electron, HTML/CSS/JS (Vanilla).
 
 ## 📂 Estrutura de Diretórios
 
-- `docs/`: 📄 Repositório de PDFs técnicos. Adicione novos materiais aqui.
-- `src/`: ⚙️ Código-fonte principal.
-    - `engine.py`: Lógica central do motor de mineralogia (Indexação e Busca).
-    - `rag.py`: Interface CLI baseada em texto.
-- `chroma_db/`: 🧠 Armazenamento persistente do banco de vetores.
-- `scripts/`: 🛠️ Utilitários de verificação e diagnóstico.
-- `scratch/`: 🧪 Scripts de teste e experimentação.
-- `main.py`: 🎤 Ponto de entrada para a sessão Multimodal Live (Voz).
+- `main.py`: 🎤 Ponto de entrada para a sessão de voz CLI (Multimodal Live).
+- `src/`: ⚙️ Núcleo do sistema.
+    - `app.py`: Servidor FastAPI que alimenta o app desktop.
+    - `engine.py`: Motor central de Mineralogia (Indexação, Busca Rápida e Busca Profunda).
+    - `rag.py`: Script CLI para consultas textuais simples.
+- `desktop/`: 💻 Código-fonte da aplicação Electron.
+- `docs/`: 📄 Repositório de PDFs técnicos. A inteligência do sistema nasce aqui.
+- `chroma_db/`: 🧠 Memória vetorial persistente.
+- `scripts/`: 🛠️ Utilitários de diagnóstico e verificação de ambiente.
+- `scratch/`: 🧪 Experimentos e testes rápidos de API.
 
 ## 🛠️ Comandos Principais
 
-### Execução
-- **Iniciar Sessão de Voz:**
+### Desenvolvimento e Execução
+- **Iniciar App Desktop (Dev):**
+  ```bash
+  npm run dev
+  ```
+- **Iniciar Sessão de Voz (CLI):**
   ```bash
   python main.py
   ```
@@ -38,22 +47,27 @@ A arquitetura do projeto é dividida em dois fluxos principais:
   python src/rag.py
   ```
 
-### Verificação e Configuração
-- **Verificar Dependências:**
+### Configuração e Build
+- **Instalar Dependências Node (Raiz e Desktop):**
   ```bash
-  python scripts/verify_imports.py
+  npm install
   ```
-- **Configurar Ambiente:**
-  Certifique-se de ter o arquivo `.env` com a sua `GOOGLE_API_KEY`.
+- **Gerar Executáveis (Desktop):**
+  ```bash
+  npm run build:linux  # Ou build:win, build:mac
+  ```
 
-## 📝 Convenções de Desenvolvimento
+## 📝 Convenções e Fluxos
 
-- **Indexação Automática:** Na primeira execução, o sistema indexa automaticamente todos os PDFs da pasta `docs/`.
-- **Configuração via .env:** Todas as chaves e variáveis sensíveis devem estar no arquivo `.env`.
-- **Processamento Local:** Os embeddings são gerados localmente usando a CPU/GPU do dispositivo para maior velocidade e privacidade na busca.
-- **VAD (Voice Activity Detection):** O sistema `main.py` gerencia interrupções de voz automaticamente.
+- **Estratégia de RAG:**
+    - **Busca Rápida (`query_mineralogy_docs`):** Recupera os 5 trechos mais relevantes. Baixíssima latência.
+    - **Busca Profunda (`deep_query_mineralogy_docs`):** Realiza expansão de query via LLM (3 variações) e recupera até 12 trechos. Possui timeout de 1.5s para evitar gargalos de API.
+- **Indexação Automática:** O sistema detecta novos PDFs em `docs/` na inicialização e reconstrói o banco se estiver vazio.
+- **Identidade da IA:** A assistente chama-se **Zé**, possui sotaque nordestino (50%) e tom profissional acolhedor.
+- **Segurança:** Chaves de API SEMPRE no arquivo `.env` como `GOOGLE_API_KEY`. Nunca comitar este arquivo.
 
-## 📋 TODO / Futuras Melhorias
-- [ ] Implementar suporte para outros tipos de documentos além de PDF.
-- [ ] Adicionar interface web (Streamlit ou FastAPI).
-- [ ] Otimizar o tempo de resposta do RAG em bases de dados muito grandes.
+## 📋 TODO / Evolução
+- [x] Implementar interface Desktop com Electron.
+- [x] Otimizar latência da expansão de busca profunda (timeout 1.5s).
+- [ ] Implementar suporte para outros tipos de documentos (TXT, DOCx).
+- [ ] 
