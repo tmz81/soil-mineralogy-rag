@@ -3,18 +3,18 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Soil Mineralogy AI</title>
+  <title>Zé das Coisas AI</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 <div id="app">
   <!-- ═══ Sidebar ═══ -->
   <aside class="sidebar">
-    <div class="sidebar-logo" title="Soil Mineralogy AI"><img src="assets/icon.png" alt="Logo" style="width: 100%; height: 100%; object-fit: cover; border-radius: inherit;"></div>
+    <div class="sidebar-logo" title="Zé das Coisas AI"><img src="assets/icon.png" alt="Logo" style="width: 100%; height: 100%; object-fit: cover; border-radius: inherit;"></div>
     <div class="sidebar-spacer"></div>
     <nav class="sidebar-nav">
-      <button class="nav-btn active" data-page="voice" title="Conversa com Zé">🎙️</button>
-      <button class="nav-btn" data-page="library" title="Biblioteca de PDFs">📚</button>
+      <button class="nav-btn active" data-page="voice" title="Conversa com Zé das Coisas">🎙️</button>
+      <button class="nav-btn" data-page="library" title="Biblioteca de Documentos">📚</button>
       <button class="nav-btn" data-page="settings" title="Configurações">⚙️</button>
       <button class="nav-btn" id="btn-theme-toggle" title="Alternar Tema">☀️</button>
     </nav>
@@ -23,7 +23,7 @@
 
   <!-- ═══ Title Bar ═══ -->
   <div class="titlebar" id="titlebar">
-    <span class="titlebar-text">Soil Mineralogy AI</span>
+    <span class="titlebar-text">Zé das Coisas AI</span>
   </div>
 
   <!-- ═══ Content ═══ -->
@@ -45,7 +45,7 @@
             <div class="orb-ring ring-2"></div>
             <div class="orb-ring ring-3"></div>
             <div class="orb-core">
-              <span class="orb-emoji">🪨</span>
+              <span class="orb-emoji">✨</span>
             </div>
           </div>
           <!-- Audio wave bars -->
@@ -62,8 +62,8 @@
 
         <!-- Zé identity -->
         <div class="voice-identity">
-          <h2 class="voice-name">Zé</h2>
-          <p class="voice-role">Especialista em Mineralogia do Solo</p>
+          <h2 class="voice-name">Zé das Coisas</h2>
+          <p class="voice-role">Seu Amigo Virtual & Assistente Inteligente</p>
         </div>
 
         <!-- Transcript feed -->
@@ -72,7 +72,7 @@
         <!-- Tool call indicator -->
         <div class="voice-tool-indicator" id="voice-tool-indicator" style="display:none;">
           <span class="spinner"></span>
-          <span id="voice-tool-text">Consultando biblioteca técnica...</span>
+          <span id="voice-tool-text">Consultando documentos...</span>
         </div>
 
         <!-- Controls -->
@@ -82,28 +82,28 @@
           </button>
           <button class="voice-ctrl-btn" id="btn-stop-voice" title="Encerrar sessão" style="display:none;">⏹️</button>
         </div>
-        <p class="voice-hint" id="voice-hint">Pressione para conversar com Zé sobre mineralogia</p>
+        <p class="voice-hint" id="voice-hint">Converse sobre qualquer assunto ou pergunte sobre seus documentos</p>
       </div>
     </section>
 
     <!-- ── Library Page ── -->
     <section class="page" id="page-library">
       <div class="page-header">
-        <h1 class="page-title">Biblioteca de PDFs</h1>
-        <p class="page-subtitle">Importe e gerencie seus documentos técnicos</p>
+        <h1 class="page-title">Biblioteca de Documentos</h1>
+        <p class="page-subtitle">Carregue qualquer PDF, DOCX ou TXT de até 200MB</p>
       </div>
       <div class="card" style="margin-bottom: 20px;">
         <div class="upload-zone" id="upload-zone">
           <div class="upload-icon">📄</div>
-          <div class="upload-text">Arraste PDFs aqui ou clique para selecionar</div>
-          <div class="upload-hint">Formatos aceitos: .pdf</div>
+          <div class="upload-text">Arraste documentos aqui ou clique para selecionar</div>
+          <div class="upload-hint">Formatos aceitos: .pdf, .docx, .txt (até 200MB)</div>
         </div>
-        <input type="file" id="file-input" multiple accept=".pdf" style="display:none;">
+        <input type="file" id="file-input" multiple accept=".pdf,.docx,.txt" style="display:none;">
       </div>
       <div class="card">
         <div class="card-title"><span class="icon">📂</span> Documentos Carregados <span id="doc-count" style="color:var(--text-muted);font-weight:400;font-size:13px;"></span></div>
         <div id="doc-list" class="doc-list">
-          <div class="empty-state"><div class="empty-icon">📭</div><div class="empty-text">Nenhum PDF carregado</div></div>
+          <div class="empty-state"><div class="empty-icon">📭</div><div class="empty-text">Nenhum documento carregado</div></div>
         </div>
       </div>
     </section>
@@ -133,7 +133,7 @@
         <div class="card">
           <div class="card-title"><span class="icon">🧠</span> Banco de Dados Vetorial</div>
           <div class="db-stats">
-            <div class="stat-box"><div class="stat-value" id="stat-pdfs">-</div><div class="stat-label">PDFs</div></div>
+            <div class="stat-box"><div class="stat-value" id="stat-pdfs">-</div><div class="stat-label">Arquivos</div></div>
             <div class="stat-box"><div class="stat-value" id="stat-chunks">-</div><div class="stat-label">Trechos</div></div>
             <div class="stat-box"><div class="stat-value" id="stat-status">-</div><div class="stat-label">Status</div></div>
           </div>

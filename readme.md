@@ -1,6 +1,6 @@
-# 🌍 Soil Mineralogy AI - Multimodal Live RAG
+# 🔮 Zé das Coisas AI - Multimodal Live Assistant (Jarvis / Amigo Virtual)
 
-Este projeto é um sistema avançado de RAG (Retrieval-Augmented Generation) focado em Mineralogia do Solo. Ele permite que você processe PDFs complexos, armazene-os em um banco de dados local veloz e converse de maneira inteligente — **via áudio em tempo real** — usando a nova API Multimodal do Google Gemini.
+Este projeto é um ecossistema avançado de RAG (Retrieval-Augmented Generation) e assistente pessoal inteligente chamado **Zé das Coisas**. Ele permite que você carregue e gerencie **qualquer tipo de PDF, DOCX ou TXT de até 200MB**, realize a indexação offline local de forma extremamente veloz e converse de maneira fluida e divertida por **áudio em tempo real** — com um sotaque nordestino cativante de 50% — usando a nova API Multimodal Live do Google Gemini.
 
 ---
 
@@ -51,41 +51,52 @@ source venv/bin/activate
 ```
 
 **2. Instale as Dependências Python**
-Nesta etapa instalamos os motores do RAG local e o novo SDK do Google GenAI para sessões Multimodais Live:
+Nesta etapa instalamos os motores do RAG local (embeddings locais offline `all-MiniLM-L6-v2` e banco vetorial ChromaDB) e o novo SDK do Google GenAI para sessões Multimodais Live:
 ```bash
-pip install -U langchain langchain-community langchain-chroma langchain-text-splitters pypdf python-dotenv langchain-huggingface sentence-transformers pyaudio google-genai
+pip install -U langchain langchain-community langchain-chroma langchain-text-splitters pypdf python-dotenv langchain-huggingface sentence-transformers pyaudio google-genai docx2txt
 ```
 
-**3. Arquive o Seu Conteúdo**
-Pegue e arraste todos os arquivos PDF técnicos de Mineralogia do Solo para dentro da pasta `docs/`. O sistema construirá a inteligência a partir deles!
+**3. Instale as Dependências do Desktop (Node/Electron)**
+```bash
+npm install
+```
 
 ---
 
 ## 🚀 Nível Três: Botando pra Quebrar
 
-Terminamos! Basta "dar o play" com o seu ambiente virtual ativado:
+Terminamos! Você possui duas maneiras incríveis de interagir com o Zé das Coisas:
 
+### Opção A: Interface Gráfica Premium Desktop (Recomendado)
+Para iniciar a maravilhosa interface visual em Electron (com controle de biblioteca de documentos, upload inteligente, configurações e visualizações animadas de voz):
+```bash
+npm run dev
+```
+
+### Opção B: Conversação via Terminal (CLI)
+Com o seu ambiente virtual ativado, rode:
 ```bash
 python main.py
 ```
 
-- **A PRIMEIRA VEZ:** Se você acabou de colocar seus PDFs, o script notará automaticamente que o banco de dados está vazio e indexará todos os documentos usando sua CPU (HuggingFace MiniLM).
-- **DALI PARA A FRENTE:** Ele abrirá o microfone instantaneamente. A sessão *"SESSÃO MULTIMODAL INICIADA"* será exibida no terminal. É só falar com a sua voz e ouvir o especialista em Mineralogia do Solo te responder consultando os PDFs!
+- **A PRIMEIRA VEZ:** Se você acabou de carregar seus documentos, o sistema notará automaticamente e indexará de forma offline usando sua CPU/GPU local de forma super rápida.
+- **DALI PARA A FRENTE:** Ele abrirá o microfone instantaneamente. É só falar com a sua voz e ouvir o Zé das Coisas te responder como um amigo pessoal, consultando os arquivos que você colocou!
 
-Para encerrar a conversa, simplesmente diga **"Sair"** ou pressione `Ctrl+C`.
+Para encerrar a conversa na CLI, simplesmente diga **"Sair"** ou pressione `Ctrl+C`.
 
 ---
 
-## 📂 Visão Geral do Projeto Organizado
+## 📂 Visão Geral da Estrutura
 
-Deixamos tudo altamente profissional, mantendo apenas **um arquivo principal** exposto.
+Deixamos tudo altamente modular, limpo e profissional.
 
 ```text
-soil-mineralogy/
-├── docs/               # 📄 LUGAR DOS PDFS: Coloque aqui o seu material didático
-├── chroma_db/          # 🧠 LUGAR DA MEMÓRIA: Banco de dados girando offline  
-├── src/                # ⚙️ MOTORES: A lógica de RAG, Embeddings e ferramentas do Gemini (engine.py)
-├── .env                # 🔐 LUGAR SECRETO: É a sua garagem de chave de Segurança
-├── venv/               # 📦 PASTA ESCONDIDA: Todos os pacotes pesados pip ficam nela
-└── main.py             # 🎤 PONTO DE ENTRADA: O único arquivo que você roda para iniciar a mágica!
+ze-das-coisas/
+├── docs/               # 📄 DOCUMENTOS: Insira aqui qualquer PDF, DOCX ou TXT (até 200MB)
+├── chroma_db/          # 🧠 BANCO VETORIAL: Sua base de conhecimento indexada offline localmente
+├── src/                # ⚙️ MOTORES: A lógica de RAG, embeddings locais e WebSocket (app.py, engine.py)
+├── desktop/            # 💻 DESKTOP APP: Código-fonte do app de Electron e interface visual premium
+├── .env                # 🔐 CONFIG: Sua chave de segurança GOOGLE_API_KEY
+├── venv/               # 📦 PYTHON VENV: Biblioteca local Python isolada
+└── main.py             # 🎤 SESSÃO DE VOZ CLI: Ponto de entrada para conversação por voz via terminal
 ```

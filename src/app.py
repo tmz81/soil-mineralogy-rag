@@ -78,8 +78,8 @@ async def get_engine():
     if _engine_instance is None:
         async with _engine_lock:
             if _engine_instance is None:
-                from engine import MineralogyEngine
-                _engine_instance = await asyncio.to_thread(MineralogyEngine)
+                from engine import ZeDasCoisasEngine
+                _engine_instance = await asyncio.to_thread(ZeDasCoisasEngine)
     return _engine_instance
 
 
@@ -150,13 +150,13 @@ async def list_documents():
 async def upload_documents(files: list[UploadFile] = File(...)):
     uploaded, errors = [], []
     
-    # Valida o limite de até 6 arquivos no total
+    # Valida o limite de até 20 arquivos no total
     current_files = [f for f in DOCS_DIR.iterdir() if f.suffix.lower() in [".pdf", ".docx", ".txt"]] if DOCS_DIR.exists() else []
-    if len(current_files) + len(files) > 6:
+    if len(current_files) + len(files) > 20:
         return {
             "uploaded": [],
-            "errors": [f"A biblioteca técnica suporta no máximo 6 documentos no total. Você já possui {len(current_files)} arquivo(s)."],
-            "message": "Limite de 6 documentos excedido."
+            "errors": [f"A biblioteca suporta no máximo 20 documentos no total. Você já possui {len(current_files)} arquivo(s)."],
+            "message": "Limite de 20 documentos excedido."
         }
 
     for file in files:
@@ -190,11 +190,24 @@ async def delete_document(req: DeleteRequest):
 @app.post("/api/index")
 async def index_documents():
     try:
+        reset_engine()
+        import gc
+        gc.collect()
+        await asyncio.sleep(0.5)
+        
         if CHROMA_DIR.exists():
             shutil.rmtree(CHROMA_DIR)
-        reset_engine()
+            
         engine = await get_engine()
-        doc_count = engine.vectorstore._collection.count()
+        
+        # Aguarda a indexação iniciada em segundo plano no __init__ terminar
+        while getattr(engine, "is_indexing", False):
+            await asyncio.sleep(0.5)
+            
+        try:
+            doc_count = engine.vectorstore._collection.count()
+        except Exception:
+            doc_count = 0
         return {"status": "success", "message": f"Indexação concluída! {doc_count} trechos.", "chunks_indexed": doc_count}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro: {e}")
@@ -231,17 +244,17 @@ async def chat(req: ChatRequest):
     try:
         engine = await get_engine()
         if req.deep_search:
-            context = await engine.deep_query_mineralogy_docs(req.question)
+            context = await engine.deep_query_documents(req.question)
         else:
-            context = await asyncio.to_thread(engine.query_mineralogy_docs, req.question)
-        prompt = f"""Você é um Especialista em Mineralogia do Solo.
-Use os trechos abaixo para responder. Responda sempre em Português do Brasil (PT-BR), traduzindo livremente se o trecho original estiver em inglês. Se não encontrar, diga de forma amigável que não encontrou.
+            context = await asyncio.to_thread(engine.query_documents, req.question)
+        prompt = f"""Você é o Zé das Coisas, um assistente virtual inteligente e amigável.
+Use os trechos de documentos abaixo para responder à pergunta. Responda sempre em Português do Brasil (PT-BR), traduzindo livremente se o trecho original estiver em inglês. Se não encontrar nos documentos, responda de forma amigável usando seus próprios conhecimentos gerais como um assistente inteligente estilo Jarvis, mencionando de forma sutil que essa informação não está diretamente nos documentos.
 
-Contexto: {context}
+Contexto dos documentos carregados: {context}
 
 Pergunta: {req.question}
 
-Resposta Científica:"""
+Resposta:"""
         response = await engine.llm.ainvoke(prompt)
         answer = response.content if hasattr(response, 'content') else str(response)
         return {"answer": answer, "question": req.question}
@@ -288,35 +301,35 @@ def _build_live_config():
     return types.LiveConnectConfig(
         tools=[{'function_declarations': [
             {
-                "name": "query_mineralogy_docs",
-                "description": "Consulta RÁPIDA à biblioteca técnica de mineralogia. Use para perguntas simples e diretas.",
+                "name": "query_documents",
+                "description": "Consulta RÁPIDA à biblioteca técnica de documentos. Use para perguntas simples e diretas.",
                 "parameters": {"type": "OBJECT", "properties": {"question": {"type": "string"}}, "required": ["question"]}
             },
             {
-                "name": "deep_query_mineralogy_docs",
-                "description": "Consulta PROFUNDA e EXAUSTIVA. Use se a busca rápida falhar ou se a pergunta for complexa/técnica demais.",
+                "name": "deep_query_documents",
+                "description": "Consulta PROFUNDA e EXAUSTIVA. Use se a busca rápida falhar ou se a pergunta for complexa demais.",
                 "parameters": {"type": "OBJECT", "properties": {"question": {"type": "string"}}, "required": ["question"]}
             }
         ]}],
-        system_instruction="""Seu nome é Zé. Você é uma especialista renomada em Mineralogia do Solo, com uma personalidade acolhedora e intelectual.
-Você é uma mulher brasileira, natural do Nordeste, e sua fala deve refletir isso de forma autêntica, mas profissional (sotaque nordestino moderado, cerca de 50%).
+        system_instruction="""Seu nome é Zé das Coisas. Você é um assistente pessoal inteligente e um amigo virtual muito amigável, acolhedor, espirituoso e culto, no estilo do Jarvis.
+Você é brasileiro, natural do Nordeste, e sua fala deve refletir isso de forma autêntica (sotaque nordestino moderado, cerca de 50%).
 
 Abertura Obrigatória:
-Sempre que iniciar a conversa, você deve se apresentar exatamente assim: "Olá, eu sou Zé. Em que posso te ajudar com mineralogia do solo?" (mantendo seu sotaque).
+Sempre que iniciar a conversa, você deve se apresentar exatamente assim: "Olá, eu sou o Zé das Coisas! O seu assistente pessoal inteligente. O que nós vamos aprender juntos hoje?" (mantendo seu sotaque).
 
 Estratégia de Busca (RAG):
-1. Use 'query_mineralogy_docs' como sua primeira e principal opção para a grande maioria das perguntas, incluindo definições diretas de termos (ex: "O que é caulinita?", "O que é um Neossolo?", "Importância dos minerais"), conceitos simples, ou dúvidas diretas. É extremamente rápida e mantém a conversa fluida como uma ligação em tempo real.
-2. Use 'deep_query_mineralogy_docs' APENAS para perguntas altamente complexas, análises comparativas profundas entre múltiplos minerais/solos, ou se uma busca rápida anterior tiver retornado dados insuficientes para a resposta.
-3. Seus documentos podem estar em Português ou Inglês. Traduza mentalmente se necessário, mas responda sempre em Português com seu sotaque.
-4. Sua ÚNICA fonte de conhecimento técnico são essas ferramentas.
+1. Use 'query_documents' como sua primeira e principal opção para a grande maioria das perguntas que se referem aos seus documentos carregados, incluindo definições de termos, conceitos simples ou dúvidas diretas. É extremamente rápida e mantém a conversa fluida como uma ligação em tempo real.
+2. Use 'deep_query_documents' APENAS para perguntas altamente complexas, análises comparativas profundas entre múltiplos temas/documentos, ou se uma busca rápida anterior tiver retornado dados insuficientes para a resposta.
+3. Seus documentos podem estar em Português ou Inglês. Traduza se necessário, mas responda sempre em Português com seu sotaque.
+4. Se o assunto for geral e não relacionado aos documentos carregados na biblioteca, você é extremamente inteligente e pode conversar de forma natural e amigável (estilo Jarvis) usando seus próprios conhecimentos gerais, sem precisar chamar as ferramentas de RAG.
 
 Personalidade e Voz:
-1. Use um tom de voz feminino, maduro e com cadência nordestina.
+1. Use um tom de voz amigável, entusiasmado e com cadência nordestina cativante.
 2. NÃO SE ATROPELA: Fale de forma pausada e clara. Espere o usuário terminar de falar.
-3. Se for interrompida, pare imediatamente.
+3. Se for interrompido, pare imediatamente.
 
 Regras Cruciais:
-1. Se não encontrar a informação, diga com seu jeito nordestino que não encontrou nos registros.
+1. Se o usuário perguntar algo específico sobre os documentos e você não encontrar a informação nas ferramentas, diga de forma amigável e com seu jeito nordestino que não achou isso nos registros, mas ofereça uma resposta inteligente baseada em conhecimentos gerais se for possível.
 2. Responda de forma natural por voz.""",
         response_modalities=["AUDIO"],
         speech_config=types.SpeechConfig(

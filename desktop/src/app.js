@@ -1,5 +1,5 @@
 /**
- * Soil Mineralogy AI — Frontend Application Logic
+ * Zé das Coisas AI — Frontend Application Logic
  * ==================================================
  * Voice-first interface using Web Audio API + WebSocket
  * for real-time bidirectional audio streaming with Gemini Live.
@@ -160,7 +160,7 @@ async function startVoiceSession() {
     });
 
     // 2. Connect WebSocket to backend
-    setVoiceStatus('', 'Conectando com Zé...');
+    setVoiceStatus('', 'Conectando com Zé das Coisas...');
     voiceWs = new WebSocket(`${WS_URL}/api/voice`);
     voiceWs.onopen = () => {
       const wsStatus = document.getElementById('debug-ws-status');
@@ -231,8 +231,8 @@ async function startVoiceSession() {
     micBtn.classList.add('active');
     document.getElementById('mic-icon').textContent = '⏹️';
     stopBtn.style.display = 'none';
-    hint.textContent = 'Sessão ativa — fale com Zé';
-    setVoiceStatus('connected', 'Conectado — aguardando sua voz...');
+    hint.textContent = 'Sessão ativa — fale com o Zé';
+    setVoiceStatus('connected', 'Conectado — fale agora com o Zé!');
     setOrbState('active');
     setWaveBars(true);
     startWaveAnimation();
@@ -281,7 +281,7 @@ function stopVoiceSession() {
   micBtn.classList.remove('active');
   document.getElementById('mic-icon').textContent = '🎙️';
   document.getElementById('btn-stop-voice').style.display = 'none';
-  document.getElementById('voice-hint').textContent = 'Pressione para conversar com Zé';
+  document.getElementById('voice-hint').textContent = 'Converse sobre qualquer assunto ou pergunte sobre seus documentos';
   document.getElementById('voice-tool-indicator').style.display = 'none';
 
   setVoiceStatus('', 'Sessão encerrada');
@@ -298,7 +298,7 @@ function handleVoiceMessage(msg) {
       playbackQueue.push(pcmData);
       setOrbState('speaking');
       setWaveBars(true, true);
-      setVoiceStatus('speaking', 'Zé está falando...');
+      setVoiceStatus('speaking', 'Zé das Coisas está falando...');
       if (!isPlaying) playNextChunk();
       break;
 
@@ -423,8 +423,8 @@ function showToolCall(name) {
   const el = document.getElementById('voice-tool-indicator');
   const textEl = document.getElementById('voice-tool-text');
   const labels = {
-    'query_mineralogy_docs': '📚 Consultando biblioteca técnica...',
-    'deep_query_mineralogy_docs': '🔬 Busca profunda em andamento...'
+    'query_documents': '📚 Consultando documentos...',
+    'deep_query_documents': '🔬 Busca profunda em andamento...'
   };
   textEl.textContent = labels[name] || `🔧 ${name}`;
   el.style.display = 'flex';
@@ -535,9 +535,12 @@ function initLibrary() {
   zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
   zone.addEventListener('drop', (e) => {
     e.preventDefault(); zone.classList.remove('dragover');
-    const files = Array.from(e.dataTransfer.files).filter(f => f.name.toLowerCase().endsWith('.pdf'));
+    const files = Array.from(e.dataTransfer.files).filter(f => {
+      const ext = f.name.toLowerCase().split('.').pop();
+      return ['pdf', 'docx', 'txt'].includes(ext);
+    });
     if (files.length) uploadFiles(files);
-    else toast('Apenas arquivos PDF são aceitos', 'error');
+    else toast('Apenas arquivos PDF, DOCX ou TXT são aceitos', 'error');
   });
 }
 
@@ -595,18 +598,22 @@ async function loadDocuments() {
     const data = await api('/api/documents');
     countEl.textContent = `(${data.total})`;
     if (!data.documents.length) {
-      container.innerHTML = `<div class="empty-state"><div class="empty-icon">📭</div><div class="empty-text">Nenhum PDF carregado</div></div>`;
+      container.innerHTML = `<div class="empty-state"><div class="empty-icon">📭</div><div class="empty-text">Nenhum documento carregado</div></div>`;
       return;
     }
-    container.innerHTML = data.documents.map(doc => `
-      <div class="doc-item">
-        <span class="doc-icon">📕</span>
-        <div class="doc-info">
-          <div class="doc-name" title="${doc.name}">${doc.name}</div>
-          <div class="doc-size">${doc.size_display}</div>
-        </div>
-        <button class="doc-delete" onclick="deleteDoc('${doc.name}')" title="Excluir">🗑️</button>
-      </div>`).join('');
+    container.innerHTML = data.documents.map(doc => {
+      const ext = doc.name.split('.').pop().toLowerCase();
+      const icon = ext === 'pdf' ? '📕' : (ext === 'docx' ? '📘' : '📝');
+      return `
+        <div class="doc-item">
+          <span class="doc-icon">${icon}</span>
+          <div class="doc-info">
+            <div class="doc-name" title="${doc.name}">${doc.name}</div>
+            <div class="doc-size">${doc.size_display}</div>
+          </div>
+          <button class="doc-delete" onclick="deleteDoc('${doc.name}')" title="Excluir">🗑️</button>
+        </div>`;
+    }).join('');
   } catch {
     container.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-text">Erro ao carregar</div></div>`;
   }

@@ -29,7 +29,7 @@ import google.genai.live
 google.genai.live.ws_connect = patched_connect
 # ----------------------------------------
 
-from src.engine import MineralogyEngine
+from src.engine import ZeDasCoisasEngine
 
 load_dotenv()
 @contextlib.contextmanager
@@ -56,7 +56,7 @@ class GeminiLiveRAG:
     def __init__(self):
         self.client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
         self.model_id = "gemini-3.1-flash-live-preview"
-        self.engine = MineralogyEngine()
+        self.engine = ZeDasCoisasEngine()
         with ignore_stderr():
             self.audio = pyaudio.PyAudio()
         self.audio_out_queue = asyncio.Queue()
@@ -219,35 +219,35 @@ class GeminiLiveRAG:
         config = types.LiveConnectConfig(
             tools=[{'function_declarations': [
                 {
-                    "name": "query_mineralogy_docs",
-                    "description": "Consulta RÁPIDA à biblioteca técnica de mineralogia. Use para perguntas simples e diretas.",
+                    "name": "query_documents",
+                    "description": "Consulta RÁPIDA à biblioteca técnica de documentos. Use para perguntas simples e diretas.",
                     "parameters": {"type": "OBJECT", "properties": {"question": {"type": "string"}}, "required": ["question"]}
                 },
                 {
-                    "name": "deep_query_mineralogy_docs",
-                    "description": "Consulta PROFUNDA e EXAUSTIVA. Use se a busca rápida falhar ou se a pergunta for complexa/técnica demais.",
+                    "name": "deep_query_documents",
+                    "description": "Consulta PROFUNDA e EXAUSTIVA. Use se a busca rápida falhar ou se a pergunta for complexa demais.",
                     "parameters": {"type": "OBJECT", "properties": {"question": {"type": "string"}}, "required": ["question"]}
                 }
             ]}],
-            system_instruction="""Seu nome é Zé. Você é uma especialista renomada em Mineralogia do Solo, com uma personalidade acolhedora e intelectual.
-Você é uma mulher brasileira, natural do Nordeste, e sua fala deve refletir isso de forma autêntica, mas profissional (sotaque nordestino moderado, cerca de 50%).
+            system_instruction="""Seu nome é Zé das Coisas. Você é um assistente pessoal inteligente e um amigo virtual muito amigável, acolhedor, espirituoso e culto, no estilo do Jarvis.
+Você é brasileiro, natural do Nordeste, e sua fala deve refletir isso de forma autêntica (sotaque nordestino moderado, cerca de 50%).
 
 Abertura Obrigatória:
-Sempre que iniciar a conversa, você deve se apresentar exatamente assim: "Olá, eu sou Zé. Em que posso te ajudar com mineralogia do solo?" (mantendo seu sotaque).
+Sempre que iniciar a conversa, você deve se apresentar exatamente assim: "Olá, eu sou o Zé das Coisas! O seu assistente pessoal inteligente. O que nós vamos aprender juntos hoje?" (mantendo seu sotaque).
 
 Estratégia de Busca (RAG):
-1. Use 'query_mineralogy_docs' como sua primeira e principal opção para a grande maioria das perguntas, incluindo definições diretas de termos (ex: "O que é caulinita?", "O que é um Neossolo?", "Importância dos minerais"), conceitos simples, ou dúvidas diretas. É extremamente rápida e mantém a conversa fluida como uma ligação em tempo real.
-2. Use 'deep_query_mineralogy_docs' APENAS para perguntas altamente complexas, análises comparativas profundas entre múltiplos minerais/solos, ou se uma busca rápida anterior tiver retornado dados insuficientes para a resposta.
-3. Seus documentos podem estar em Português ou Inglês. Traduza mentalmente se necessário, mas responda sempre em Português com seu sotaque.
-4. Sua ÚNICA fonte de conhecimento técnico são essas ferramentas.
+1. Use 'query_documents' como sua primeira e principal opção para a grande maioria das perguntas que se referem aos seus documentos carregados, incluindo definições de termos, conceitos simples ou dúvidas diretas. É extremamente rápida e mantém a conversa fluida como uma ligação em tempo real.
+2. Use 'deep_query_documents' APENAS para perguntas altamente complexas, análises comparativas profundas entre múltiplos temas/documentos, ou se uma busca rápida anterior tiver retornado dados insuficientes para a resposta.
+3. Seus documentos podem estar em Português ou Inglês. Traduza se necessário, mas responda sempre em Português com seu sotaque.
+4. Se o assunto for geral e não relacionado aos documentos carregados na biblioteca, você é extremamente inteligente e pode conversar de forma natural e amigável (estilo Jarvis) usando seus próprios conhecimentos gerais, sem precisar chamar as ferramentas de RAG.
 
 Personalidade e Voz:
-1. Use um tom de voz feminino, maduro e com cadência nordestina. 
+1. Use um tom de voz amigável, entusiasmado e com cadência nordestina cativante.
 2. NÃO SE ATROPELA: Fale de forma pausada e clara. Espere o usuário terminar de falar.
-3. Se for interrompida, pare imediatamente.
+3. Se for interrompido, pare imediatamente.
 
 Regras Cruciais:
-1. Se não encontrar a informação, diga com seu jeito nordestino que não encontrou nos registros.
+1. Se o usuário perguntar algo específico sobre os documentos e você não encontrar a informação nas ferramentas, diga de forma amigável e com seu jeito nordestino que não achou isso nos registros, mas ofereça uma resposta inteligente baseada em conhecimentos gerais se for possível.
 2. Responda de forma natural por voz.""",
             response_modalities=["AUDIO"],
             speech_config=types.SpeechConfig(voice_config=types.VoiceConfig(prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name="Puck")))

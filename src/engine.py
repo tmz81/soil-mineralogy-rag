@@ -24,7 +24,7 @@ DOCS_PATH = str(BASE_DIR / "docs")
 from langchain_community.document_loaders import PyPDFLoader, DirectoryLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-class MineralogyEngine:
+class ZeDasCoisasEngine:
     def __init__(self):
         self.embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
         self.llm = ChatGoogleGenerativeAI(model="gemini-flash-latest")
@@ -63,6 +63,8 @@ class MineralogyEngine:
             docs_dir = Path(DOCS_PATH)
             if docs_dir.exists():
                 for f in sorted(docs_dir.iterdir()):
+                    if not f.is_file():
+                        continue
                     ext = f.suffix.lower()
                     if ext == ".pdf":
                         try:
@@ -88,11 +90,7 @@ class MineralogyEngine:
             text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=100)
             splits = text_splitter.split_documents(docs)
             
-            self.vectorstore = Chroma.from_documents(
-                documents=splits, 
-                embedding=self.embeddings, 
-                persist_directory=DB_PATH
-            )
+            self.vectorstore.add_documents(splits)
             self.retriever = self.vectorstore.as_retriever(search_kwargs={"k": 5})
             self.deep_retriever = self.vectorstore.as_retriever(search_kwargs={"k": 12})
             print(f"[SISTEMA] Sucesso! {len(splits)} trechos foram indexados em segundo plano.")
@@ -101,7 +99,7 @@ class MineralogyEngine:
         finally:
             self.is_indexing = False
 
-    def query_mineralogy_docs(self, question: str) -> str:
+    def query_documents(self, question: str) -> str:
         """
         Consulta RÁPIDA à biblioteca técnica. Ideal para definições diretas e dúvidas simples.
         """
@@ -110,7 +108,7 @@ class MineralogyEngine:
         context = "\n\n".join(doc.page_content for doc in docs)
         return context if context else "Nenhuma informação encontrada na busca rápida."
 
-    async def deep_query_mineralogy_docs(self, question: str) -> str:
+    async def deep_query_documents(self, question: str) -> str:
         """
         Busca PROFUNDA e EXAUSTIVA. Use quando a busca rápida não for suficiente ou o assunto for complexo.
         Esta ferramenta analisa múltiplos trechos e gera variações da pergunta para garantir precisão técnica.
@@ -119,7 +117,7 @@ class MineralogyEngine:
         
         # Expansão de Query: Gera variações para aumentar chance de acerto (Português e Inglês)
         queries = [question]
-        prompt = f"Gere 3 variações técnicas e sinônimas (em português e inglês) da seguinte pergunta sobre mineralogia do solo para melhorar a busca em PDFs: '{question}'. Retorne apenas as perguntas separadas por linha."
+        prompt = f"Gere 3 variações técnicas e sinônimas (em português e inglês) da seguinte pergunta para melhorar a busca nos documentos indexados: '{question}'. Retorne apenas as perguntas separadas por linha."
         try:
             # Timeout estrito de 1.5 segundos para evitar travamentos devido a limites de cota (429) ou lentidão de rede
             variations_res = await asyncio.wait_for(self.llm.ainvoke(prompt), timeout=1.5)
@@ -159,6 +157,6 @@ class MineralogyEngine:
 
 # Teste rápido se rodado diretamente
 if __name__ == "__main__":
-    engine = MineralogyEngine()
-    res = engine.query_mineralogy_docs("O que é caulinita?")
+    engine = ZeDasCoisasEngine()
+    res = engine.query_documents("Como funciona o aprendizado de máquina?")
     print(f"Resultado: {res[:200]}...")
