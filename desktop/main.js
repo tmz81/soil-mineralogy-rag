@@ -164,9 +164,9 @@ function createWindow() {
 
   mainWindow.loadFile(path.join(__dirname, 'src', 'index.html'));
 
-  if (isDev && !app.isPackaged) {
-    mainWindow.webContents.openDevTools({ mode: 'detach' });
-  }
+  // if (isDev && !app.isPackaged) {
+  //   mainWindow.webContents.openDevTools({ mode: 'detach' });
+  // }
 
   mainWindow.on('closed', () => {
     mainWindow = null;
@@ -181,8 +181,8 @@ ipcMain.handle('get-backend-url', () => {
 
 ipcMain.handle('select-files', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
-    title: 'Selecionar PDFs para importar',
-    filters: [{ name: 'Documentos PDF', extensions: ['pdf'] }],
+    title: 'Selecionar documentos para importar',
+    filters: [{ name: 'Documentos compatíveis', extensions: ['pdf', 'docx', 'txt'] }],
     properties: ['openFile', 'multiSelections']
   });
   return result.filePaths;

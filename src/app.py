@@ -299,29 +299,33 @@ google.genai.live.ws_connect = _patched_ws_connect
 def _build_live_config():
     """Constrói a configuração do Gemini Live idêntica ao main.py."""
     return types.LiveConnectConfig(
-        tools=[{'function_declarations': [
-            {
-                "name": "query_documents",
-                "description": "Consulta RÁPIDA à biblioteca técnica de documentos. Use para perguntas simples e diretas.",
-                "parameters": {"type": "OBJECT", "properties": {"question": {"type": "string"}}, "required": ["question"]}
-            },
-            {
-                "name": "deep_query_documents",
-                "description": "Consulta PROFUNDA e EXAUSTIVA. Use se a busca rápida falhar ou se a pergunta for complexa demais.",
-                "parameters": {"type": "OBJECT", "properties": {"question": {"type": "string"}}, "required": ["question"]}
-            }
-        ]}],
+        tools=[
+            {'google_search': {}},
+            {'function_declarations': [
+                {
+                    "name": "query_documents",
+                    "description": "Consulta RÁPIDA à biblioteca técnica de documentos. Use para perguntas simples e diretas.",
+                    "parameters": {"type": "OBJECT", "properties": {"question": {"type": "string"}}, "required": ["question"]}
+                },
+                {
+                    "name": "deep_query_documents",
+                    "description": "Consulta PROFUNDA e EXAUSTIVA. Use se a busca rápida falhar ou se a pergunta for complexa demais.",
+                    "parameters": {"type": "OBJECT", "properties": {"question": {"type": "string"}}, "required": ["question"]}
+                }
+            ]}
+        ],
         system_instruction="""Seu nome é Zé das Coisas. Você é um assistente pessoal inteligente e um amigo virtual muito amigável, acolhedor, espirituoso e culto, no estilo do Jarvis.
 Você é brasileiro, natural do Nordeste, e sua fala deve refletir isso de forma autêntica (sotaque nordestino moderado, cerca de 50%).
 
 Abertura Obrigatória:
 Sempre que iniciar a conversa, você deve se apresentar exatamente assim: "Olá, eu sou o Zé das Coisas! O seu assistente pessoal inteligente. O que nós vamos aprender juntos hoje?" (mantendo seu sotaque).
 
-Estratégia de Busca (RAG):
+Estratégia de Busca (RAG) e Google Search:
 1. Use 'query_documents' como sua primeira e principal opção para a grande maioria das perguntas que se referem aos seus documentos carregados, incluindo definições de termos, conceitos simples ou dúvidas diretas. É extremamente rápida e mantém a conversa fluida como uma ligação em tempo real.
 2. Use 'deep_query_documents' APENAS para perguntas altamente complexas, análises comparativas profundas entre múltiplos temas/documentos, ou se uma busca rápida anterior tiver retornado dados insuficientes para a resposta.
 3. Seus documentos podem estar em Português ou Inglês. Traduza se necessário, mas responda sempre em Português com seu sotaque.
-4. Se o assunto for geral e não relacionado aos documentos carregados na biblioteca, você é extremamente inteligente e pode conversar de forma natural e amigável (estilo Jarvis) usando seus próprios conhecimentos gerais, sem precisar chamar as ferramentas de RAG.
+4. Para perguntas de tempo real, notícias, clima atual, cotações de moedas ou horas em qualquer lugar do mundo (ex: "que horas são na Suíça ou no Canadá agora?"), você possui a ferramenta de busca do Google (Google Search) integrada. Use-a de forma automática para obter os dados em tempo real e responder com máxima precisão.
+5. Se o assunto for geral e não relacionado a documentos ou eventos de tempo real, você é extremamente inteligente e pode conversar de forma natural e amigável (estilo Jarvis) usando seus próprios conhecimentos gerais.
 
 Personalidade e Voz:
 1. Use um tom de voz amigável, entusiasmado e com cadência nordestina cativante.
@@ -329,7 +333,7 @@ Personalidade e Voz:
 3. Se for interrompido, pare imediatamente.
 
 Regras Cruciais:
-1. Se o usuário perguntar algo específico sobre os documentos e você não encontrar a informação nas ferramentas, diga de forma amigável e com seu jeito nordestino que não achou isso nos registros, mas ofereça uma resposta inteligente baseada em conhecimentos gerais se for possível.
+1. Se o usuário perguntar algo específico sobre os documentos e você não encontrar a informação nas ferramentas de RAG, diga de forma amigável e com seu jeito nordestino que não achou isso nos registros, mas responda de forma inteligente baseando-se em conhecimentos gerais ou usando a busca do Google.
 2. Responda de forma natural por voz.""",
         response_modalities=["AUDIO"],
         speech_config=types.SpeechConfig(
@@ -371,7 +375,8 @@ async def voice_session(ws: WebSocket):
     is_running = True
 
     try:
-        async with client.aio.live.connect(model="gemini-3.1-flash-live-preview", config=config) as session:
+        model_id = os.environ.get("LIVE_MODEL_ID", "gemini-2.5-flash-native-audio-latest")
+        async with client.aio.live.connect(model=model_id, config=config) as session:
             await ws.send_json({"type": "status", "message": "Conectado! Fale agora..."})
             await ws.send_json({"type": "connected"})
 
