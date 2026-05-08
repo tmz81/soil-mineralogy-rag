@@ -1,6 +1,9 @@
 import os
 import asyncio
 import threading
+import subprocess
+import webbrowser
+import urllib.parse
 from pathlib import Path
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from langchain_huggingface import HuggingFaceEmbeddings
@@ -154,6 +157,228 @@ class ZeDasCoisasEngine:
 
         context = "\n\n---\n\n".join(unique_contents[:12]) 
         return context if context else "Infelizmente, não encontrei informações específicas sobre isso nos registros técnicos."
+
+    def open_system_browser(self, url: str) -> str:
+        """
+        Abre o navegador padrão do sistema em um site específico ou faz uma pesquisa e abre o primeiro link orgânico.
+        """
+        import urllib.request
+        import re
+        import threading
+
+        if not url.startswith("http://") and not url.startswith("https://"):
+            if "." in url and " " not in url:
+                url = "https://" + url
+            else:
+                # Tenta realizar uma pesquisa rápida no DuckDuckGo para extrair o primeiro resultado orgânico
+                try:
+                    query = urllib.parse.quote(url)
+                    search_url = f"https://html.duckduckgo.com/html/?q={query}"
+                    headers = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36'}
+                    req = urllib.request.Request(search_url, headers=headers)
+                    with urllib.request.urlopen(req) as response:
+                        html = response.read().decode('utf-8')
+                    
+                    # Encontra o primeiro link orgânico do DDG
+                    links = re.findall(r"class=\"result__url\"[^\>]*href=\"([^\"]+)\"", html)
+                    if links:
+                        first_link = urllib.parse.unquote(links[0])
+                        if "uddg=" in first_link:
+                            parsed = urllib.parse.urlparse(first_link)
+                            first_link = urllib.parse.parse_qs(parsed.query).get('uddg', [first_link])[0]
+                        
+                        print(f"\n[AGENTE] Pesquisa por '{url}' ativa. Primeiro resultado selecionado: {first_link}. Abrindo...")
+                        threading.Thread(target=webbrowser.open, args=(first_link,), daemon=True).start()
+                        return f"Pesquisa por '{url}' realizada. Selecionei e abri o primeiro link encontrado: {first_link}"
+                except Exception as e:
+                    print(f"[AGENTE] Falha ao extrair primeiro link da pesquisa ({e}). Usando fallback Google.")
+                
+                query = urllib.parse.quote(url)
+                url = f"https://www.google.com/search?q={query}"
+        
+        print(f"\n[AGENTE] Abrindo navegador na URL: {url}...")
+        threading.Thread(target=webbrowser.open, args=(url,), daemon=True).start()
+        return f"Navegador aberto com sucesso em: {url}"
+
+    def play_youtube_video(self, search_query: str) -> str:
+        """
+        Pesquisa e abre o primeiro vídeo correspondente diretamente no YouTube.
+        """
+        import urllib.request
+        import re
+        import threading
+
+        print(f"\n[AGENTE] Selecionando o primeiro vídeo no YouTube para: {search_query}...")
+        query = urllib.parse.quote(search_query)
+        search_url = f"https://www.youtube.com/results?search_query={query}"
+        
+        try:
+            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+            req = urllib.request.Request(search_url, headers=headers)
+            with urllib.request.urlopen(req) as response:
+                html = response.read().decode('utf-8')
+            
+            # Tenta encontrar o primeiro ID de vídeo nas tags do JSON interno do YouTube
+            video_ids = re.findall(r"\"videoIds\":\[\"([^\"]+)\"\]", html)
+            if not video_ids:
+                # Regex alternativa para correspondência tradicional
+                video_ids = re.findall(r"watch\?v=([a-zA-Z0-9_-]{11})", html)
+                
+            if video_ids:
+                video_url = f"https://www.youtube.com/watch?v={video_ids[0]}"
+                print(f"[AGENTE] Vídeo selecionado: {video_url}. Reproduzindo...")
+                threading.Thread(target=webbrowser.open, args=(video_url,), daemon=True).start()
+                return f"Vídeo '{search_query}' selecionado e reproduzindo com sucesso no navegador."
+        except Exception as e:
+            print(f"[AGENTE] Falha na seleção automática de vídeo ({e}). Abrindo busca geral...")
+            
+        threading.Thread(target=webbrowser.open, args=(search_url,), daemon=True).start()
+        return f"YouTube aberto na busca por '{search_query}'."
+
+    def adjust_system_volume(self, action: str, value: int = 10) -> str:
+        """
+        Ajusta o volume do som do sistema.
+        Valores de 'action': 'increase' (aumentar), 'decrease' (diminuir), 'set' (definir), 'toggle_mute' (mutar/desmutar).
+        """
+        print(f"\n[AGENTE] Ajustando volume do sistema. Ação: {action}, Valor: {value}...")
+        try:
+            if action == "increase":
+                res = subprocess.run(["pactl", "set-sink-volume", "@DEFAULT_SINK@", f"+{value}%"], capture_output=True)
+                if res.returncode != 0:
+                    subprocess.run(["amixer", "-q", "sset", "Master", f"{value}%+"])
+                return f"Volume aumentado em {value}%."
+                
+            elif action == "decrease":
+                res = subprocess.run(["pactl", "set-sink-volume", "@DEFAULT_SINK@", f"-{value}%"], capture_output=True)
+                if res.returncode != 0:
+                    subprocess.run(["amixer", "-q", "sset", "Master", f"{value}%-"])
+                return f"Volume diminuído em {value}%."
+                
+            elif action == "set":
+                res = subprocess.run(["pactl", "set-sink-volume", "@DEFAULT_SINK@", f"{value}%"], capture_output=True)
+                if res.returncode != 0:
+                    subprocess.run(["amixer", "-q", "sset", "Master", f"{value}%"])
+                return f"Volume definido para {value}%."
+                
+            elif action == "toggle_mute":
+                res = subprocess.run(["pactl", "set-sink-mute", "@DEFAULT_SINK@", "toggle"], capture_output=True)
+                if res.returncode != 0:
+                    subprocess.run(["amixer", "-q", "sset", "Master", "toggle"])
+                return "Mudo alternado com sucesso."
+                
+            return "Ação de volume desconhecida."
+        except Exception as e:
+            return f"Erro ao tentar ajustar o volume: {str(e)}"
+
+    def control_wifi(self, state: str) -> str:
+        """
+        Liga ou desliga o adaptador Wi-Fi do sistema.
+        Valores para 'state': 'on' (ligar) ou 'off' (desligar).
+        """
+        print(f"\n[AGENTE] Configurando Wi-Fi para: {state}...")
+        try:
+            if state == "on":
+                subprocess.run(["nmcli", "radio", "wifi", "on"], check=True)
+                return "Adaptador Wi-Fi ativado com sucesso."
+            elif state == "off":
+                subprocess.run(["nmcli", "radio", "wifi", "off"], check=True)
+                return "Adaptador Wi-Fi desativado com sucesso."
+            return "Estado do Wi-Fi inválido."
+        except Exception as e:
+            return f"Erro ao configurar Wi-Fi: {e}"
+
+    def control_bluetooth(self, state: str) -> str:
+        """
+        Liga ou desliga o adaptador Bluetooth do sistema.
+        Valores para 'state': 'on' (ligar) ou 'off' (desligar).
+        """
+        print(f"\n[AGENTE] Configurando Bluetooth para: {state}...")
+        try:
+            if state == "on":
+                # Ativa o Bluetooth via rfkill e bluetoothctl para compatibilidade máxima
+                subprocess.run(["rfkill", "unblock", "bluetooth"], check=True)
+                subprocess.run(["bluetoothctl", "power", "on"], check=True)
+                return "Adaptador Bluetooth ativado com sucesso."
+            elif state == "off":
+                subprocess.run(["bluetoothctl", "power", "off"], check=True)
+                return "Adaptador Bluetooth desativado com sucesso."
+            return "Estado do Bluetooth inválido."
+        except Exception as e:
+            return f"Erro ao configurar Bluetooth: {e}"
+
+    def open_local_directory(self, path: str = "") -> str:
+        """
+        Abre um diretório local do sistema de arquivos no gerenciador de arquivos padrão.
+        Se 'path' for vazio ou omitido, abre a pasta home do usuário.
+        """
+        import shutil
+        import threading
+        if not path:
+            path = str(Path.home())
+        print(f"\n[AGENTE] Abrindo diretório local: {path}...")
+        try:
+            resolved_path = str(Path(path).expanduser().resolve())
+            if not os.path.exists(resolved_path):
+                return f"Diretório não encontrado no sistema: {resolved_path}"
+            
+            # Abre usando o xdg-open padrão do sistema Linux em segundo plano
+            threading.Thread(target=subprocess.run, args=(["xdg-open", resolved_path],), daemon=True).start()
+            return f"Diretório '{resolved_path}' aberto com sucesso."
+        except Exception as e:
+            return f"Erro ao abrir diretório: {e}"
+
+    def scroll_web_page(self, direction: str, amount: int = 3) -> str:
+        """
+        Realiza scroll (rolagem) para cima ou para baixo na janela ou página web ativa.
+        Valores de 'direction': 'down' (baixo) ou 'up' (cima).
+        """
+        import shutil
+        import time
+        print(f"\n[AGENTE] Executando rolagem de tela: {direction} (intensidade: {amount})...")
+        
+        if shutil.which("xdotool") is None:
+            return "Erro: O utilitário 'xdotool' não está instalado no sistema. Execute 'sudo apt install xdotool' para me conceder controle de tela e navegação."
+        
+        try:
+            button = "5" if direction == "down" else "4"
+            for _ in range(amount):
+                subprocess.run(["xdotool", "click", button], check=True)
+                time.sleep(0.05)
+            return f"Rolagem para {direction} executada com sucesso {amount} vezes."
+        except Exception as e:
+            return f"Erro ao simular rolagem com xdotool: {e}"
+
+    def click_on_coordinates(self, x: int, y: int) -> str:
+        """
+        Clica em uma coordenada de tela específica (X, Y) do sistema.
+        """
+        import shutil
+        print(f"\n[AGENTE] Clicando na posição da tela: ({x}, {y})...")
+        
+        if shutil.which("xdotool") is None:
+            return "Erro: O utilitário 'xdotool' não está instalado no sistema. Execute 'sudo apt install xdotool' para me conceder controle de tela."
+        
+        try:
+            subprocess.run(["xdotool", "mousemove", str(x), str(y), "click", "1"], check=True)
+            return f"Clique simulado com sucesso na coordenada ({x}, {y})."
+        except Exception as e:
+            return f"Erro ao simular clique com xdotool: {e}"
+
+    def press_keyboard_key(self, key: str) -> str:
+        """
+        Pressiona uma tecla específica do teclado do sistema (ex: 'Return', 'space', 'Page_Down', 'Page_Up').
+        """
+        import shutil
+        print(f"\n[AGENTE] Pressionando tecla: {key}...")
+        
+        if shutil.which("xdotool") is None:
+            return "Erro: O utilitário 'xdotool' não está instalado no sistema. Execute 'sudo apt install xdotool' para me conceder controle de teclado."
+        
+        try:
+            subprocess.run(["xdotool", "key", key], check=True)
+            return f"Tecla '{key}' pressionada com sucesso no sistema."
+        except Exception as e:
+            return f"Erro ao simular tecla com xdotool: {e}"
 
 # Teste rápido se rodado diretamente
 if __name__ == "__main__":
