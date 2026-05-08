@@ -380,6 +380,86 @@ class ZeDasCoisasEngine:
         except Exception as e:
             return f"Erro ao simular tecla com xdotool: {e}"
 
+    def interact_with_web_page(self, action: str, target: str = "") -> str:
+        """
+        Permite interagir de forma inteligente com páginas web ativas no navegador padrão do sistema.
+        Valores de 'action':
+        - 'smooth_scroll_down': Realiza uma rolagem de tela suave para baixo.
+        - 'smooth_scroll_up': Realiza uma rolagem de tela suave para cima.
+        - 'close_modal': Tenta fechar modais ou pop-ups na tela (pressionando Escape).
+        - 'accept_cookies': Tenta localizar e clicar em botões de consentimento de cookies comuns (como Aceitar, Permitir, etc.).
+        - 'click_button_by_text': Busca e clica em um botão específico na página cujo texto é igual a 'target'.
+        """
+        import shutil
+        import time
+        print(f"\n[AGENTE] Interagindo com página web. Ação: {action}, Alvo: '{target}'...")
+
+        if shutil.which("xdotool") is None:
+            return "Erro: O utilitário 'xdotool' não está instalado no sistema. Execute 'sudo apt install xdotool' para me conceder controle de tela."
+
+        try:
+            if action == "smooth_scroll_down":
+                # Faz 25 pequenas rolagens rápidas com pequeno intervalo para simular suavidade
+                for _ in range(25):
+                    subprocess.run(["xdotool", "click", "5"], check=True)
+                    time.sleep(0.015)
+                return "Rolagem suave para baixo realizada com sucesso."
+
+            elif action == "smooth_scroll_up":
+                for _ in range(25):
+                    subprocess.run(["xdotool", "click", "4"], check=True)
+                    time.sleep(0.015)
+                return "Rolagem suave para cima realizada com sucesso."
+
+            elif action == "close_modal":
+                # Modais e popups costumam fechar com a tecla Escape
+                subprocess.run(["xdotool", "key", "Escape"], check=True)
+                return "Simulação de fechamento de modal (tecla Escape) enviada com sucesso."
+
+            elif action == "accept_cookies":
+                # Lista de termos comuns em botões de cookies (Português e Inglês)
+                cookie_terms = [
+                    "Aceitar todos", "Aceitar cookies", "Aceitar tudo", "Aceitar", 
+                    "Permitir todos", "Permitir cookies", "Permitir", "Concordar",
+                    "Accept all", "Accept cookies", "Accept", "Allow all", "Allow", "Agree"
+                ]
+                for term in cookie_terms:
+                    subprocess.run(["xdotool", "key", "Escape"], check=True) # Limpa seleções anteriores
+                    time.sleep(0.05)
+                    subprocess.run(["xdotool", "key", "ctrl+f"], check=True)
+                    time.sleep(0.1)
+                    subprocess.run(["xdotool", "type", term], check=True)
+                    time.sleep(0.1)
+                    subprocess.run(["xdotool", "key", "Return"], check=True)
+                    time.sleep(0.05)
+                    subprocess.run(["xdotool", "key", "Escape"], check=True) # Fecha barra de busca
+                    time.sleep(0.05)
+                    subprocess.run(["xdotool", "key", "Return"], check=True) # Pressiona Return para clicar
+                    time.sleep(0.1)
+                return "Tentativa de aceitar cookies concluída por meio de varredura de termos comuns de consentimento."
+
+            elif action == "click_button_by_text":
+                if not target:
+                    return "Erro: É necessário especificar um texto ('target') para clicar no botão por texto."
+                subprocess.run(["xdotool", "key", "Escape"], check=True)
+                time.sleep(0.05)
+                subprocess.run(["xdotool", "key", "ctrl+f"], check=True)
+                time.sleep(0.1)
+                subprocess.run(["xdotool", "type", target], check=True)
+                time.sleep(0.1)
+                subprocess.run(["xdotool", "key", "Return"], check=True)
+                time.sleep(0.05)
+                subprocess.run(["xdotool", "key", "Escape"], check=True)
+                time.sleep(0.05)
+                subprocess.run(["xdotool", "key", "Return"], check=True)
+                return f"Tentativa de clicar no botão contendo '{target}' realizada com sucesso."
+
+            else:
+                return f"Erro: Ação '{action}' desconhecida para interação inteligente com página web."
+
+        except Exception as e:
+            return f"Erro ao realizar interação web: {e}"
+
 # Teste rápido se rodado diretamente
 if __name__ == "__main__":
     engine = ZeDasCoisasEngine()

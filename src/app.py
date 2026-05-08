@@ -432,21 +432,39 @@ def _build_live_config():
                         "required": ["x", "y"]
                     }
                 },
-                {
-                    "name": "press_keyboard_key",
-                    "description": "Pressiona uma tecla específica do teclado do sistema.",
-                    "parameters": {
-                        "type": "OBJECT",
-                        "properties": {
-                            "key": {
-                                "type": "string",
-                                "description": "Nome da tecla no xdotool (ex: 'Return', 'space', 'Page_Down', 'Page_Up', 'Tab')."
-                            }
-                        },
-                        "required": ["key"]
-                    }
-                }
-            ]}
+                 {
+                     "name": "press_keyboard_key",
+                     "description": "Pressiona uma tecla específica do teclado do sistema.",
+                     "parameters": {
+                         "type": "OBJECT",
+                         "properties": {
+                             "key": {
+                                 "type": "string",
+                                 "description": "Nome da tecla no xdotool (ex: 'Return', 'space', 'Page_Down', 'Page_Up', 'Tab')."
+                             }
+                         },
+                         "required": ["key"]
+                     }
+                 },
+                 {
+                     "name": "interact_with_web_page",
+                     "description": "Permite interagir de forma inteligente com páginas web ativas no navegador padrão (scroll suave, fechar modais, aceitar cookies, clicar em botões por texto).",
+                     "parameters": {
+                         "type": "OBJECT",
+                         "properties": {
+                             "action": {
+                                 "type": "string",
+                                 "description": "Ação a ser executada: 'smooth_scroll_down' (scroll suave para baixo), 'smooth_scroll_up' (scroll suave para cima), 'close_modal' (fechar pop-up/modal), 'accept_cookies' (localizar e aceitar cookies), 'click_button_by_text' (clicar em um botão pelo texto em target)."
+                             },
+                             "target": {
+                                 "type": "string",
+                                 "description": "Opcional. Texto do botão a ser clicado quando a ação for 'click_button_by_text'."
+                             }
+                         },
+                         "required": ["action"]
+                     }
+                 }
+             ]}
         ],
         system_instruction="""Seu nome é Zé. Você é um assistente pessoal inteligente e um profissional de TI e Segurança altamente capacitado, sério, focado e de poucas palavras, fortemente inspirado no robô CASE do filme Interestelar (2014) na lendária dublagem brasileira de Hércules Franco.
 
@@ -474,6 +492,7 @@ Ações, Automação e Controle do Sistema:
 2. Gerenciador de Arquivos local: Se solicitado para abrir uma pasta, diretório ou local de arquivos específico, chame 'open_local_directory' passando o caminho solicitado (ou vazio para abrir a Home).
 3. Interação Ativa na Tela e Páginas Web (Navegação Avançada):
    - Se o usuário pedir para rolar, dar scroll, descer ou subir a página web/janela activa, chame 'scroll_web_page' especificando a direção ('down' ou 'up') e a intensidade.
+   - Se o usuário pedir para realizar uma rolagem suave, fechar modais, aceitar avisos de cookies ou clicar em algum elemento pelo texto na página web ativa, chame 'interact_with_web_page' especificando a ação correspondente ('smooth_scroll_down', 'smooth_scroll_up', 'close_modal', 'accept_cookies', 'click_button_by_text') e o texto ('target') se aplicável.
    - Se o usuário pedir para clicar em uma área da tela, botão, link ou local específico na página, chame 'click_on_coordinates' com as coordenadas X e Y correspondentes.
    - Se o usuário instruir para apertar alguma tecla (como Enter, Barra de Espaço, Tab, Page Down, etc.), chame 'press_keyboard_key' passando a tecla (ex: 'Return', 'space', 'Tab', 'Page_Down', 'Page_Up').
 4. Ações Tradicionais de Mídia e Navegador:
