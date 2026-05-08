@@ -8,81 +8,61 @@
 </head>
 <body>
 <div id="app">
-  <!-- ═══ Sidebar ═══ -->
-  <aside class="sidebar">
-    <div class="sidebar-logo" title="Zé das Coisas AI"><img src="assets/icon.png" alt="Logo" style="width: 100%; height: 100%; object-fit: cover; border-radius: inherit;"></div>
-    <div class="sidebar-spacer"></div>
-    <nav class="sidebar-nav">
-      <button class="nav-btn active" data-page="voice" title="Conversa com Zé das Coisas">🎙️</button>
-      <button class="nav-btn" data-page="library" title="Biblioteca de Documentos">📚</button>
-      <button class="nav-btn" data-page="settings" title="Configurações">⚙️</button>
-      <button class="nav-btn" id="btn-theme-toggle" title="Alternar Tema">☀️</button>
-    </nav>
-    <div class="sidebar-spacer"></div>
-  </aside>
-
-  <!-- ═══ Title Bar ═══ -->
+  <!-- ═══ Title Bar (Custom drag area for Electron) ═══ -->
   <div class="titlebar" id="titlebar">
-    <span class="titlebar-text">Zé das Coisas AI</span>
+    <span class="titlebar-text"></span>
   </div>
 
-  <!-- ═══ Content ═══ -->
+  <!-- ═══ Content Area ═══ -->
   <main class="content">
 
-    <!-- ── Voice Page (CORE) ── -->
+    <!-- ── Voice Page (CORE EXPERIENCE matching Print 1) ── -->
     <section class="page active" id="page-voice">
       <div class="voice-container">
-        <!-- Status area -->
+        <!-- Status Area (Listening... or Speaking...) -->
         <div class="voice-status" id="voice-status">
           <span class="voice-status-dot"></span>
           <span class="voice-status-text">Clique no microfone para iniciar</span>
         </div>
 
-        <!-- Central orb visualization -->
+        <!-- Central Glowing Sphere & Flowing Wave Canvas (Print 1) -->
         <div class="voice-orb-wrapper">
           <div class="voice-orb" id="voice-orb">
             <div class="orb-ring ring-1"></div>
             <div class="orb-ring ring-2"></div>
             <div class="orb-ring ring-3"></div>
-            <div class="orb-core">
-              <span class="orb-emoji">✨</span>
-            </div>
+            <div class="orb-core"></div>
           </div>
-          <!-- Audio wave bars -->
-          <div class="wave-bars" id="wave-bars">
-            <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
-            <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
-            <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
-            <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
-            <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
-            <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
-            <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
-          </div>
+          <!-- Wave Canvas (Flowing horizontal sine wave / static flat line) -->
+          <canvas id="wave-canvas"></canvas>
         </div>
 
-        <!-- Zé identity -->
-        <div class="voice-identity">
-          <h2 class="voice-name">Zé das Coisas</h2>
-          <p class="voice-role">Seu Amigo Virtual & Assistente Inteligente</p>
+        <!-- Transcript Feed ("What's the price of hoverboard...") -->
+        <div class="voice-transcript-wrapper">
+          <div class="voice-transcript" id="voice-transcript"></div>
         </div>
 
-        <!-- Transcript feed -->
-        <div class="voice-transcript" id="voice-transcript"></div>
-
-        <!-- Tool call indicator -->
+        <!-- Tool Call Indicator -->
         <div class="voice-tool-indicator" id="voice-tool-indicator" style="display:none;">
           <span class="spinner"></span>
           <span id="voice-tool-text">Consultando documentos...</span>
         </div>
 
-        <!-- Controls -->
+        <!-- Mic Control Button (Glowing Microphone in Print 1) -->
         <div class="voice-controls">
-          <button class="mic-btn" id="btn-mic" title="Iniciar conversa">
-            <span class="mic-icon" id="mic-icon">🎙️</span>
+          <button class="mic-btn" id="btn-mic" title="Inicializando..." disabled style="opacity: 0.4; pointer-events: none;">
+            <span class="mic-icon" id="mic-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mic-svg">
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                <line x1="12" y1="19" x2="12" y2="23"></line>
+                <line x1="8" y1="23" x2="16" y2="23"></line>
+              </svg>
+            </span>
           </button>
           <button class="voice-ctrl-btn" id="btn-stop-voice" title="Encerrar sessão" style="display:none;">⏹️</button>
         </div>
-        <p class="voice-hint" id="voice-hint">Converse sobre qualquer assunto ou pergunte sobre seus documentos</p>
+        <p class="voice-hint" id="voice-hint"></p>
       </div>
     </section>
 
@@ -163,6 +143,41 @@
     </div>
 
   </main>
+
+  <!-- ═══ Floating Bottom Navigation Bar (Print 2) ═══ -->
+  <aside class="sidebar">
+    <nav class="sidebar-nav">
+      <!-- Home (Voice Page) Button -->
+      <button class="nav-btn active" data-page="voice" title="Conversa com Zé das Coisas">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="nav-svg">
+          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+          <polyline points="9 22 9 12 15 12 15 22"></polyline>
+        </svg>
+      </button>
+      <!-- Library Button -->
+      <button class="nav-btn" data-page="library" title="Biblioteca de Documentos">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="nav-svg">
+          <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+          <polyline points="2 17 12 22 22 17"></polyline>
+          <polyline points="2 12 12 17 22 12"></polyline>
+        </svg>
+      </button>
+      <!-- Settings/Keyboard Button -->
+      <button class="nav-btn" data-page="settings" title="Configurações">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="nav-svg">
+          <rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect>
+          <line x1="6" y1="8" x2="6" y2="8"></line>
+          <line x1="10" y1="8" x2="10" y2="8"></line>
+          <line x1="14" y1="8" x2="14" y2="8"></line>
+          <line x1="18" y1="8" x2="18" y2="8"></line>
+          <line x1="6" y1="12" x2="6" y2="12"></line>
+          <line x1="10" y1="12" x2="10" y2="12"></line>
+          <line x1="14" y1="12" x2="14" y2="12"></line>
+          <line x1="18" y1="12" x2="18" y2="12"></line>
+          <line x1="7" y1="16" x2="17" y2="16"></line>
+        </svg>
+    </nav>
+  </aside>
 </div>
 
 <div class="toast-container" id="toast-container"></div>

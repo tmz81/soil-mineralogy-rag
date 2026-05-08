@@ -218,7 +218,6 @@ class GeminiLiveRAG:
     async def run(self):
         config = types.LiveConnectConfig(
             tools=[
-                {'google_search': {}},
                 {'function_declarations': [
                     {
                         "name": "query_documents",

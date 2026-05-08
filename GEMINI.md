@@ -1,73 +1,91 @@
-# 🔮 Zé das Coisas AI - Multimodal Live Assistant (Jarvis / Amigo Virtual)
+# 🔮 Zé das Coisas AI - Project Documentation
 
-Este repositório contém um ecossistema avançado de RAG (Retrieval-Augmented Generation) pessoal e de uso geral chamado **Zé das Coisas**. O sistema integra a API Multimodal Live do Google Gemini para interações de voz em tempo real (como um amigo virtual estilo Jarvis) e processamento local de documentos de qualquer assunto (PDF, DOCX, TXT) para máxima precisão e performance.
+This document provides essential context and instructions for the **Zé das Coisas AI** project (Soil Mineralogy RAG), an advanced multimodal assistant specializing in Retrieval-Augmented Generation (RAG) for technical documents.
 
-## 🚀 Visão Geral do Projeto
+---
 
-A arquitetura é modular e oferece três formas principais de interação com a base de conhecimento (documentos na pasta `docs/`):
+## 🚀 Project Overview
 
-1.  **Multimodal Live RAG (Voz):** Conversação fluida e divertida por áudio com o assistente "Zé das Coisas", utilizando `gemini-3.1-flash-live-preview`.
-2.  **Desktop App (Electron):** Uma interface visual moderna que gerencia documentos (de até 200MB), configurações e sessões de voz/texto através de um backend FastAPI.
-3.  **CLI Text RAG:** Interface de terminal para consultas rápidas de texto puro.
+**Zé das Coisas** is a personal assistant that combines the power of **Google Gemini Multimodal Live API** with a local **RAG (Retrieval-Augmented Generation)** engine. It allows users to index technical documents (PDF, DOCX, TXT) and interact with them via real-time voice or text.
 
-### Tecnologias Principais
-- **LLMs:** Google Gemini (`gemini-3.1-flash-live-preview` e `gemini-flash-latest`).
-- **Orquestração RAG:** LangChain.
-- **Banco de Vetores:** ChromaDB (Persistência local em `./chroma_db`).
-- **Embeddings:** HuggingFace `all-MiniLM-L6-v2` (Execução local em CPU/GPU).
-- **Backend:** FastAPI (Servidor REST e WebSocket bridge).
-- **Frontend/Desktop:** Electron, HTML/CSS/JS (Vanilla).
+### Key Technologies
+- **AI/LLM:** Google Gemini (using `google-genai` and `gemini-2.0-flash-exp`).
+- **RAG Framework:** LangChain (LCEL) with ChromaDB for vector storage.
+- **Embeddings:** HuggingFace `all-MiniLM-L6-v2` (running locally).
+- **Backend:** Python / FastAPI for the API and RAG engine.
+- **Desktop Interface:** Electron (Node.js) providing a premium GUI.
+- **Live Multimodal:** Real-time voice interaction with interruption support.
 
-## 📂 Estrutura de Diretórios
+---
 
-- `main.py`: 🎤 Ponto de entrada para a sessão de voz CLI (Multimodal Live).
-- `src/`: ⚙️ Núcleo do sistema.
-    - `app.py`: Servidor FastAPI que alimenta o app desktop.
-    - `engine.py`: Motor central de documentos (Indexação, Busca Rápida e Busca Profunda).
-    - `rag.py`: Script CLI para consultas textuais simples.
-- `desktop/`: 💻 Código-fonte da aplicação Electron.
-- `docs/`: 📄 Repositório de PDFs, DOCXs e TXTs técnicos. A inteligência do seu assistente nasce aqui.
-- `chroma_db/`: 🧠 Memória vetorial persistente.
-- `scripts/`: 🛠️ Utilitários de diagnóstico e verificação de ambiente.
-- `scratch/`: 🧪 Experimentos e testes rápidos de API.
+## 📂 Project Structure
 
-## 🛠️ Comandos Principais
+- `docs/`: Repository for PDF, DOCX, and TXT documents (up to 200MB).
+- `chroma_db/`: Local vector database storage.
+- `src/`: Core logic and engines.
+    - `engine.py`: The `ZeDasCoisasEngine` class, managing RAG, tool calls, and system automation.
+    - `app.py`: FastAPI server bridging the desktop app and the RAG engine.
+    - `rag.py`: CLI-based text RAG interface.
+- `desktop/`: Electron-based frontend source code.
+- `main.py`: Entry point for the CLI-based Multimodal Live voice session.
+- `scripts/`: Utility scripts for model checking and import verification.
 
-### Desenvolvimento e Execução
-- **Iniciar App Desktop (Dev):**
+---
+
+## 🛠 Building and Running
+
+### Prerequisites
+- **Python 3.10+**
+- **Node.js & npm**
+- **System Libraries:** `portaudio19-dev`, `python3-pyaudio`, `xdotool` (for system automation features).
+
+### Setup
+1. **Environment:** Create a `.env` file in the root with your `GOOGLE_API_KEY`.
+2. **Python Venv:**
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate
+   pip install -r requirements.txt  # Or refer to the pip install list in README.md
+   ```
+3. **Node Dependencies:**
+   ```bash
+   npm install
+   ```
+
+### Execution
+- **Desktop App (Recommended):**
   ```bash
   npm run dev
   ```
-- **Iniciar Sessão de Voz (CLI):**
+- **CLI Voice Assistant:**
   ```bash
   python main.py
   ```
-- **Iniciar CLI de Texto:**
+- **CLI Text-based RAG:**
   ```bash
   python src/rag.py
   ```
 
-### Configuração e Build
-- **Instalar Dependências Node (Raiz e Desktop):**
-  ```bash
-  npm install
-  ```
-- **Gerar Executáveis (Desktop):**
-  ```bash
-  npm run build:linux  # Ou build:win, build:mac
-  ```
+### Building (Electron)
+- **Linux:** `npm run build:linux`
+- **Windows:** `npm run build:win`
+- **macOS:** `npm run build:mac`
 
-## 📝 Convenções e Fluxos
+---
 
-- **Estratégia de RAG:**
-    - **Busca Rápida (`query_documents`):** Recupera os 5 trechos mais relevantes dos arquivos carregados. Baixíssima latência.
-    - **Busca Profunda (`deep_query_documents`):** Realiza expansão de query via LLM (3 variações) e recupera até 12 trechos. Possui timeout de 1.5s para evitar gargalos de API.
-- **Indexação Automática:** O sistema detecta novos arquivos em `docs/` na inicialização e reconstrói o banco se estiver vazio.
-- **Identidade da IA:** O assistente chama-se **Zé das Coisas**, possui sotaque nordestino moderado (50%), tom caloroso, prestativo e sutilmente intelectual, atuando como um amigo virtual inteligente no estilo Jarvis.
-- **Segurança:** Chaves de API SEMPRE no arquivo `.env` como `GOOGLE_API_KEY`. Nunca comitar este arquivo.
+## 🧠 Development Conventions
 
-## 📋 TODO / Evolução
-- [x] Implementar interface Desktop com Electron.
-- [x] Otimizar latência da expansão de busca profunda (timeout 1.5s).
-- [x] Implementar suporte para outros tipos de documentos (TXT, DOCX) de até 200MB.
-- [x] Refatorar para assistente inteligente de uso geral (Zé das Coisas).
+- **Language:** The primary development language is Python (Backend/RAG) and JavaScript (Electron).
+- **Style:** 
+    - Use **LCEL (LangChain Expression Language)** for new RAG chains.
+    - Maintain the "Zé" persona: a professional, focused, and slightly sarcastic TI/Security specialist (inspired by CASE from Interstellar).
+- **Tooling:** The `ZeDasCoisasEngine` in `src/engine.py` is the central hub for all tool definitions. New capabilities (like browser control or system automation) should be added there.
+- **Automation:** System automation (volume, wifi, click, scroll) uses `pactl`, `nmcli`, `bluetoothctl`, and `xdotool`.
+
+---
+
+## 📝 Usage Notes
+
+- **Indexing:** The first run will automatically index documents in the `docs/` folder. Subsequent runs use the persisted `chroma_db/`.
+- **Live Session:** The Gemini Live session in `main.py` and `app.py` supports real-time audio streaming and tool calling.
+- **Port:** The FastAPI backend runs on `127.0.0.1:8765` by default.

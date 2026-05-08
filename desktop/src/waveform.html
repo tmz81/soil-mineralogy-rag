@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zé - Voice Waveform Widget</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: rgba(18, 14, 36, 0.75); /* Fundo escuro premium translúcido (Glassmorphism) */
+            --glow-color: rgba(0, 243, 255, 0.4);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: transparent; /* Permite transparência no Electron */
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            user-select: none;
+            -webkit-app-region: drag; /* Permite arrastar a janela do Electron clicando em qualquer lugar */
+        }
+
+        /* Container principal do widget */
+        .widget-container {
+            width: 100%;
+            height: 100%;
+            padding: 10px 15px;
+            background: var(--bg-color);
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(16px);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            transition: all 0.3s ease;
+        }
+
+        /* Canvas onde a onda será desenhada */
+        #waveformCanvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            -webkit-app-region: no-drag; /* Permite interagir com botões ou canvas se necessário */
+        }
+
+        /* Painel de testes interativo (opcional, ocultado por padrão se for rodar puro no Electron) */
+        .test-panel {
+            position: absolute;
+            bottom: -120px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 320px;
+            background: rgba(18, 14, 36, 0.95);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 8px;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            z-index: 10;
+            transition: transform 0.3s ease;
+            -webkit-app-region: no-drag;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            font-size: 11px;
+            color: #fff;
+        }
+
+        .test-panel:hover {
+            bottom: 5px; /* Revela ao passar o mouse perto da base no navegador */
+        }
+
+        .control-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        button {
+            padding: 4px 8px;
+            border-radius: 4px;
+            border: none;
+            background: linear-gradient(135deg, #7f00ff, #00f3ff);
+            color: white;
+            font-size: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        input[type="range"] {
+            flex: 1;
+            accent-color: #00f3ff;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="widget-container">
+        <!-- O canvas renderiza em 2x de densidade para ficar perfeitamente nítido (Retina) -->
+        <canvas id="waveformCanvas"></canvas>
+
+        <!-- Painel interativo para testes no navegador -->
+        <div class="test-panel">
+            <div class="control-row">
+                <span>Controle de Teste (Passe o mouse para abrir)</span>
+            </div>
+            <div class="control-row">
+                <label>Volume: </label>
+                <input type="range" id="volumeSlider" min="0" max="100" value="0">
+                <span id="volumeValue" style="width: 25px; text-align: right;">0%</span>
+            </div>
+            <div class="control-row">
+                <button id="btnSpeech">Simular Fala (Conversa)</button>
+                <button id="btnMic">Usar Microfone Real</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('waveformCanvas');
+        const ctx = canvas.getContext('2d');
+        const volumeSlider = document.getElementById('volumeSlider');
+        const volumeValue = document.getElementById('volumeValue');
+        const btnSpeech = document.getElementById('btnSpeech');
+        const btnMic = document.getElementById('btnMic');
+
+        // Configuração do Visualizador
+        const CONFIG = {
+            numBars: 41,          // Número ímpar para ter uma barra central exata
+            minBarHeight: 3,      // Altura da barra no estado inativo (fiozinho)
+            maxBarHeight: 55,     // Altura máxima da barra central
+            barWidth: 3,          // Largura de cada barra em pixels
+            barGap: 3,            // Espaçamento entre as barras
+            smoothing: 0.15,      // Fator de interpolação lerp (suavização)
+            fps: 60
+        };
+
+        // Estado das barras
+        let barHeights = new Array(CONFIG.numBars).fill(CONFIG.minBarHeight);
+        let targetHeights = new Array(CONFIG.numBars).fill(CONFIG.minBarHeight);
+        let activeVolume = 0;
+        let isSimulatingSpeech = false;
+        let audioContext = null;
+        let analyser = null;
+        let dataArray = null;
+
+        // Ajusta as dimensões físicas do Canvas considerando DPI da tela para renderização Ultra-HD
+        function resizeCanvas() {
+            const rect = canvas.getBoundingClientRect();
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            ctx.scale(dpr, dpr);
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // API Pública: Atualiza a intensidade da onda (Volume de 0 a 100)
+        window.updateWave = function(volume) {
+            activeVolume = Math.min(Math.max(volume, 0), 100);
+            
+            // Atualiza o slider visual para manter em sincronia nos testes
+            if (!isSimulatingSpeech) {
+                volumeSlider.value = activeVolume;
+                volumeValue.textContent = `${Math.round(activeVolume)}%`;
+            }
+
+            const centerIndex = Math.floor(CONFIG.numBars / 2);
+
+            for (let i = 0; i < CONFIG.numBars; i++) {
+                if (activeVolume === 0) {
+                    targetHeights[i] = CONFIG.minBarHeight;
+                } else {
+                    // Distribuição simétrica em formato de montanha (Seno / Gaussiana)
+                    const distanceFromCenter = Math.abs(i - centerIndex);
+                    const weight = Math.cos((distanceFromCenter / centerIndex) * (Math.PI / 2.2));
+                    
+                    // Adiciona um fator aleatório micro para dar a sensação orgânica e viva de frequência
+                    const noise = 0.7 + Math.random() * 0.6;
+                    
+                    const heightFactor = (activeVolume / 100) * CONFIG.maxBarHeight;
+                    targetHeights[i] = Math.max(CONFIG.minBarHeight, heightFactor * weight * noise);
+                }
+            }
+        };
+
+        // Loop principal de renderização (60 FPS com aceleração de hardware)
+        function draw() {
+            requestAnimationFrame(draw);
+
+            // Se o microfone real estiver ativo, extrai as frequências reais
+            if (analyser) {
+                analyser.getByteFrequencyData(dataArray);
+                
+                // Mapeia os dados de frequência do AnalyserNode para as barras criando o formato diamante
+                const centerIndex = Math.floor(CONFIG.numBars / 2);
+                let averageVolume = 0;
+
+                for (let i = 0; i < CONFIG.numBars; i++) {
+                    const distanceFromCenter = Math.abs(i - centerIndex);
+                    const weight = Math.cos((distanceFromCenter / centerIndex) * (Math.PI / 2.2));
+                    
+                    // Mapeia frequências graves/médias no centro e agudos nas pontas
+                    const dataIndex = Math.floor((distanceFromCenter / centerIndex) * (dataArray.length / 3));
+                    const freqValue = dataArray[dataIndex] || 0;
+                    averageVolume += freqValue;
+
+                    const heightFactor = (freqValue / 255) * CONFIG.maxBarHeight;
+                    targetHeights[i] = Math.max(CONFIG.minBarHeight, heightFactor * weight * (0.8 + Math.random() * 0.4));
+                }
+                
+                activeVolume = (averageVolume / CONFIG.numBars) / 2.55;
+                volumeSlider.value = activeVolume;
+                volumeValue.textContent = `${Math.round(activeVolume)}%`;
+            }
+
+            const width = canvas.width / (window.devicePixelRatio || 1);
+            const height = canvas.height / (window.devicePixelRatio || 1);
+
+            // Limpa o canvas
+            ctx.clearRect(0, 0, width, height);
+
+            // Calcula espaçamento dinâmico para centralizar a onda horizontalmente
+            const totalWidthOfBars = (CONFIG.numBars * CONFIG.barWidth) + ((CONFIG.numBars - 1) * CONFIG.barGap);
+            const startX = (width - totalWidthOfBars) / 2;
+            const centerY = height / 2;
+
+            // Cria o gradiente vertical vibrante (Roxo para Ciano) exatamente como a imagem
+            const gradient = ctx.createLinearGradient(0, centerY - CONFIG.maxBarHeight / 2, 0, centerY + CONFIG.maxBarHeight / 2);
+            gradient.addColorStop(0, '#00f3ff'); // Ciano fluorescente (topo)
+            gradient.addColorStop(0.5, '#7f00ff'); // Roxo profundo (meio)
+            gradient.addColorStop(1, '#ff007f'); // Rosa/Roxo neon (base)
+
+            ctx.fillStyle = gradient;
+
+            // Desenha cada barra com cantos arredondados
+            for (let i = 0; i < CONFIG.numBars; i++) {
+                // Interpolação Lerp para transição ultra-suave das alturas das barras
+                barHeights[i] += (targetHeights[i] - barHeights[i]) * CONFIG.smoothing;
+
+                const barH = barHeights[i];
+                const x = startX + i * (CONFIG.barWidth + CONFIG.barGap);
+                const y = centerY - (barH / 2);
+
+                // Desenha barra arredondada
+                ctx.beginPath();
+                if (ctx.roundRect) {
+                    ctx.roundRect(x, y, CONFIG.barWidth, barH, CONFIG.barWidth / 2);
+                } else {
+                    // Fallback para navegadores antigos sem roundRect nativo
+                    ctx.rect(x, y, CONFIG.barWidth, barH);
+                }
+                ctx.fill();
+            }
+        }
+
+        // Inicia animação
+        draw();
+
+        // --- INTERATIVIDADE DE TESTES ---
+
+        // Teste 1: Controle de Volume Manual via Slider
+        volumeSlider.addEventListener('input', (e) => {
+            if (analyser) stopMicrophone();
+            isSimulatingSpeech = false;
+            window.updateWave(e.target.value);
+        });
+
+        // Teste 2: Simulação Orgânica de Fala (Conversação realística)
+        btnSpeech.addEventListener('click', () => {
+            if (analyser) stopMicrophone();
+            isSimulatingSpeech = !isSimulatingSpeech;
+
+            if (isSimulatingSpeech) {
+                btnSpeech.textContent = "Parar Simulação";
+                btnSpeech.style.background = "linear-gradient(135deg, #ff007f, #7f00ff)";
+                
+                let angle = 0;
+                function simulate() {
+                    if (!isSimulatingSpeech) return;
+                    // Combina ondas senoidais e ruído para simular cadência de fala humana
+                    const speechPulse = Math.sin(angle) * Math.cos(angle * 0.3) * 60 + 40;
+                    const speechVolume = Math.max(0, speechPulse + (Math.random() * 15 - 7.5));
+                    
+                    window.updateWave(speechVolume);
+                    angle += 0.08;
+                    setTimeout(simulate, 40);
+                }
+                simulate();
+            } else {
+                btnSpeech.textContent = "Simular Fala (Conversa)";
+                btnSpeech.style.background = "linear-gradient(135deg, #7f00ff, #00f3ff)";
+                window.updateWave(0);
+            }
+        });
+
+        // Teste 3: Integração real com o Microfone via Web Audio API
+        btnMic.addEventListener('click', async () => {
+            isSimulatingSpeech = false;
+            if (analyser) {
+                stopMicrophone();
+                return;
+            }
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const source = audioContext.createMediaStreamSource(stream);
+                analyser = audioContext.createAnalyser();
+                analyser.fftSize = 128; // Pouco detalhado para melhor performance e menos consumo de CPU
+                source.connect(analyser);
+
+                const bufferLength = analyser.frequencyBinCount;
+                dataArray = new Uint8Array(bufferLength);
+
+                btnMic.textContent = "Mudar p/ Manual";
+                btnMic.style.background = "linear-gradient(135deg, #ff007f, #7f00ff)";
+                console.log("Microfone ativado com sucesso!");
+            } catch (err) {
+                alert("Erro ao acessar microfone: " + err);
+            }
+        });
+
+        function stopMicrophone() {
+            if (audioContext) {
+                audioContext.close();
+                audioContext = null;
+            }
+            analyser = null;
+            dataArray = null;
+            btnMic.textContent = "Usar Microfone Real";
+            btnMic.style.background = "linear-gradient(135deg, #7f00ff, #00f3ff)";
+            window.updateWave(0);
+        }
+    </script>
+</body>
+</html>

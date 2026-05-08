@@ -18,6 +18,7 @@ let micProcessor = null;
 let isVoiceActive = false;
 let playbackQueue = [];
 let isPlaying = false;
+let hasAutoStarted = false;
 
 // ─── Init ───────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
@@ -38,6 +39,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   loadDbStatus();
   setInterval(loadDbStatus, 3000);
   loadDocuments();
+  
+  // Desenha o "fiozinho" estático inicial na tela de voz
+  setTimeout(stopWaveAnimation, 200);
 });
 
 // ─── Toast ──────────────────────────────────────────────────────────────────
@@ -143,8 +147,10 @@ function setOrbState(state) {
 
 function setWaveBars(active, speaking = false) {
   const bars = document.getElementById('wave-bars');
-  bars.classList.toggle('active', active);
-  bars.classList.toggle('speaking', speaking);
+  if (bars) {
+    bars.classList.toggle('active', active);
+    bars.classList.toggle('speaking', speaking);
+  }
 }
 
 async function startVoiceSession() {
@@ -229,9 +235,12 @@ async function startVoiceSession() {
     // 4. Update UI
     isVoiceActive = true;
     micBtn.classList.add('active');
-    document.getElementById('mic-icon').textContent = '⏹️';
+    document.getElementById('mic-icon').innerHTML = `
+      <svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mic-svg" style="width:24px; height:24px; color:#ff007f;">
+        <rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect>
+      </svg>`;
     stopBtn.style.display = 'none';
-    hint.textContent = 'Sessão ativa — fale com o Zé';
+    hint.textContent = '';
     setVoiceStatus('connected', 'Conectado — fale agora com o Zé!');
     setOrbState('active');
     setWaveBars(true);
@@ -279,9 +288,15 @@ function stopVoiceSession() {
   // Reset UI
   const micBtn = document.getElementById('btn-mic');
   micBtn.classList.remove('active');
-  document.getElementById('mic-icon').textContent = '🎙️';
+  document.getElementById('mic-icon').innerHTML = `
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mic-svg" style="width:24px; height:24px; color:#00f3ff;">
+      <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+      <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+      <line x1="12" y1="19" x2="12" y2="23"></line>
+      <line x1="8" y1="23" x2="16" y2="23"></line>
+    </svg>`;
   document.getElementById('btn-stop-voice').style.display = 'none';
-  document.getElementById('voice-hint').textContent = 'Converse sobre qualquer assunto ou pergunte sobre seus documentos';
+  document.getElementById('voice-hint').textContent = '';
   document.getElementById('voice-tool-indicator').style.display = 'none';
 
   setVoiceStatus('', 'Sessão encerrada');
@@ -431,25 +446,101 @@ function showToolCall(name) {
   setTimeout(() => { el.style.display = 'none'; }, 8000);
 }
 
-// ─── Wave Bar Animation ─────────────────────────────────────────────────────
+// ─── Real-time Wave Canvas Animation (Print 1) ──────────────────────────────
 let waveAnimationId = null;
+let wavePhase = 0;
 
 function startWaveAnimation() {
-  const bars = document.querySelectorAll('.wave-bar');
+  const canvas = document.getElementById('wave-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+
   function animate() {
-    bars.forEach((bar) => {
-      const h = 4 + Math.random() * 28;
-      bar.style.height = `${h}px`;
-    });
+    const dpr = window.devicePixelRatio || 1;
+    const width = canvas.clientWidth;
+    const height = canvas.clientHeight;
+
+    if (canvas.width !== width * dpr || canvas.height !== height * dpr) {
+      canvas.width = width * dpr;
+      canvas.height = height * dpr;
+    }
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.save();
+    ctx.scale(dpr, dpr);
+
+    const centerY = height / 2;
+    wavePhase += 0.08; // velocidade de fluxo da onda
+
+    // Verifica se a IA está falando ou se estamos capturando o microfone
+    const isSpeaking = document.getElementById('voice-orb').classList.contains('speaking');
+    const amplitudeMultiplier = isSpeaking ? 32 : 14;
+
+    // Desenha 3 camadas de ondas senoidais flutuantes sobrepostas com opacidades e fases diferentes
+    for (let layer = 0; layer < 3; layer++) {
+      ctx.beginPath();
+      ctx.lineWidth = layer === 0 ? 2 : 1.5;
+
+      // Gradiente linear combinando Roxo com Ciano
+      const gradient = ctx.createLinearGradient(0, 0, width, 0);
+      gradient.addColorStop(0, 'rgba(255, 0, 127, 0.45)');
+      gradient.addColorStop(0.5, 'rgba(127, 0, 255, 0.65)');
+      gradient.addColorStop(1, 'rgba(0, 243, 255, 0.85)');
+      ctx.strokeStyle = gradient;
+
+      for (let x = 0; x < width; x++) {
+        const angle = (x / width) * Math.PI * 2.4 + wavePhase + (layer * Math.PI / 3.5);
+        // Envelope cossenoidal para suavizar as pontas (forma diamante/montanha no centro da esfera)
+        const envelope = Math.sin((x / width) * Math.PI);
+        const y = centerY + Math.sin(angle) * amplitudeMultiplier * envelope * (0.85 + Math.sin(wavePhase * 0.4) * 0.15);
+
+        if (x === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+
+    ctx.restore();
     waveAnimationId = requestAnimationFrame(animate);
   }
+
+  if (waveAnimationId) cancelAnimationFrame(waveAnimationId);
   animate();
 }
 
 function stopWaveAnimation() {
-  if (waveAnimationId) cancelAnimationFrame(waveAnimationId);
-  waveAnimationId = null;
-  document.querySelectorAll('.wave-bar').forEach(b => b.style.height = '4px');
+  if (waveAnimationId) {
+    cancelAnimationFrame(waveAnimationId);
+    waveAnimationId = null;
+  }
+
+  // Desenha o "fiozinho" estático horizontal e fino no estado inativo
+  const canvas = document.getElementById('wave-canvas');
+  if (canvas) {
+    const ctx = canvas.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    const width = canvas.clientWidth;
+    const height = canvas.clientHeight;
+
+    canvas.width = width * dpr;
+    canvas.height = height * dpr;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.scale(dpr, dpr);
+
+    ctx.beginPath();
+    ctx.lineWidth = 1.5;
+
+    const gradient = ctx.createLinearGradient(0, 0, width, 0);
+    gradient.addColorStop(0, 'rgba(255, 0, 127, 0.25)');
+    gradient.addColorStop(0.5, 'rgba(127, 0, 255, 0.45)');
+    gradient.addColorStop(1, 'rgba(0, 243, 255, 0.65)');
+    ctx.strokeStyle = gradient;
+
+    ctx.moveTo(0, height / 2);
+    ctx.lineTo(width, height / 2);
+    ctx.stroke();
+  }
 }
 
 // ─── Base64 Helpers ─────────────────────────────────────────────────────────
@@ -719,6 +810,11 @@ async function loadDbStatus() {
         micBtn.style.opacity = '1';
         micBtn.style.pointerEvents = 'auto';
         micBtn.title = 'Iniciar Conversação de Voz';
+
+        if (!hasAutoStarted) {
+          hasAutoStarted = true;
+          startVoiceSession();
+        }
       }
     }
   } catch { document.getElementById('stat-status').textContent = '⚠️'; }

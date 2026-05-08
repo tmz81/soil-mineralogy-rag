@@ -300,7 +300,6 @@ def _build_live_config():
     """Constrói a configuração do Gemini Live idêntica ao main.py."""
     return types.LiveConnectConfig(
         tools=[
-            {'google_search': {}},
             {'function_declarations': [
                 {
                     "name": "query_documents",
