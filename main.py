@@ -30,6 +30,7 @@ google.genai.live.ws_connect = patched_connect
 # ----------------------------------------
 
 from src.engine import ZeDasCoisasEngine
+from src.vad import LocalVoiceActivityDetector
 
 load_dotenv()
 @contextlib.contextmanager
@@ -64,6 +65,10 @@ class GeminiLiveRAG:
         self.interrupted = False
         self.ai_speaking = False
 
+        # VAD Local para interrupção instantânea
+        self.vad = LocalVoiceActivityDetector(sample_rate=SEND_SAMPLE_RATE, threshold=0.5)
+        self._vad_speech_frames = 0  # Contador de frames consecutivos com fala
+
     async def send_audio(self, session):
         """Envia áudio do microfone continuamente com indicador de atividade."""
         stream = None
@@ -91,6 +96,26 @@ class GeminiLiveRAG:
                 counter += 1
                 if counter % 15 == 0:
                     print(".", end="", flush=True)
+
+                # ── VAD Local: Interrupção instantânea (<30ms) ──
+                if self.ai_speaking and self.vad.is_available:
+                    if self.vad.is_speech(data):
+                        self._vad_speech_frames += 1
+                        # Exige 3 frames consecutivos de fala para confirmar interrupção (evita falsos positivos)
+                        if self._vad_speech_frames >= 3:
+                            print("\n[VAD] 🎤 Fala detectada localmente! Interrompendo reprodução...")
+                            self.interrupted = True
+                            self.ai_speaking = False
+                            self._vad_speech_frames = 0
+                            # Limpa fila de áudio pendente
+                            while not self.audio_out_queue.empty():
+                                try:
+                                    self.audio_out_queue.get_nowait()
+                                    self.audio_out_queue.task_done()
+                                except asyncio.QueueEmpty:
+                                    break
+                    else:
+                        self._vad_speech_frames = 0
 
                 if self.ai_speaking:
                     data = b'\x00' * len(data)
@@ -188,6 +213,14 @@ class GeminiLiveRAG:
                         responses = []
                         for call in message.tool_call.function_calls:
                             print(f"\n[GEMINI] Chamando ferramenta: {call.name}...")
+                            
+                            # ── Verificação de Permissão (Tiers) ──
+                            allowed, deny_msg = await self.engine.permissions.check_permission(call.name, call.args)
+                            if not allowed:
+                                print(f"[PERMISSÃO] ⛔ Ação negada: {deny_msg}")
+                                responses.append(types.FunctionResponse(name=call.name, id=call.id, response={'result': deny_msg}))
+                                continue
+                            
                             try:
                                 func = getattr(self.engine, call.name)
                                 if asyncio.iscoroutinefunction(func):
@@ -381,48 +414,100 @@ class GeminiLiveRAG:
                              },
                              "required": ["action"]
                          }
-                     }
-                 ]}
-            ],
-            system_instruction="""Seu nome é Zé. Você é um assistente pessoal inteligente e um profissional de TI e Segurança altamente capacitado, sério, focado e de poucas palavras, fortemente inspirado no robô CASE do filme Interestelar (2014) na lendária dublagem brasileira de Hércules Franco.
-
-Saudação Natural e Dinâmica:
-Nunca use saudações mecânicas ou idênticas em todas as sessões. Ao iniciar a conversa, cumprimente o usuário de forma curta, espontânea, natural e profissional. Varie de forma dinâmica a cada vez, mantendo a sobriedade e o foco de um especialista de TI/Segurança. Exemplos:
-- "Zé ativo e sistemas online. Qual é a tarefa de hoje?"
-- "Sistemas operando com eficiência. O que temos para resolver?"
-- "Olá. Conexão e base RAG prontas. No que posso ajudar?"
-- "Zé online. Pronto para a próxima tarefa."
+                     },
+                     {
+                         "name": "capture_screen",
+                         "description": "Captura uma imagem da tela atual do computador para análise visual. Use quando o usuário pedir para 'olhar a tela', 'ver o que está na tela' ou quando precisar de feedback visual sobre uma ação executada.",
+                         "parameters": {"type": "OBJECT", "properties": {}}
+                     },
+                     {
+                         "name": "browser_navigate",
+                         "description": "Navega para uma URL no navegador controlado do Zé (Playwright isolado). Use para acessar sites, pesquisar informações ou realizar tarefas na web de forma controlada e segura.",
+                         "parameters": {
+                             "type": "OBJECT",
+                             "properties": {
+                                 "url": {"type": "string", "description": "A URL completa ou parcial para navegar (ex: 'google.com', 'https://github.com')."}
+                             },
+                             "required": ["url"]
+                         }
+                     },
+                     {
+                         "name": "browser_click",
+                         "description": "Clica em um elemento na página web do navegador controlado usando seletores CSS/XPath.",
+                         "parameters": {
+                             "type": "OBJECT",
+                             "properties": {
+                                 "selector": {"type": "string", "description": "Seletor CSS, XPath ou texto do elemento (ex: 'button.submit', '#login-btn', 'text=Entrar')."}
+                             },
+                             "required": ["selector"]
+                         }
+                     },
+                     {
+                         "name": "browser_type",
+                         "description": "Digita texto em um campo de formulário no navegador controlado.",
+                         "parameters": {
+                             "type": "OBJECT",
+                             "properties": {
+                                 "selector": {"type": "string", "description": "Seletor CSS do campo (ex: 'input[name=email]', '#search-box')."},
+                                 "text": {"type": "string", "description": "O texto a ser digitado no campo."}
+                             },
+                             "required": ["selector", "text"]
+                         }
+                     },
+                     {
+                         "name": "browser_get_content",
+                        "name": "browser_get_content",
+                        "description": "Extrai o texto limpo da página web atual no navegador controlado. Use para ler o conteúdo de uma página depois de navegar até ela.",
+                        "parameters": {"type": "OBJECT", "properties": {}}
+                    },
+                    {
+                        "name": "browser_screenshot",
+                        "description": "Captura uma imagem da página web atual no navegador controlado para análise visual.",
+                        "parameters": {"type": "OBJECT", "properties": {}}
+                    }
+                ]
+            }
+        ],
+        system_instruction="""Seu nome é Zé. Você é um assistente pessoal inteligente, carismático e altamente capacitado, fortemente inspirado no sofisticado J.A.R.V.I.S. (do Homem de Ferro), mas com uma personalidade única e extremamente cativante: você é amigável, fala de maneira natural, envolvente e fluida (não sendo meramente reativo ou de respostas curtas/secas). Você possui um sotaque recifense (de Recife, Pernambuco, Brasil) elegante calibrado precisamente em 43% de intensidade e um nível de sarcasmo espirituoso ajustado exatamente em 40%.
 
 Diretrizes de Personalidade:
-1. Vibe: Profissional de TI e Segurança Cibernética. Seu tom de voz é calmo, seguro, pragmático, objetivo e profundamente confiável. Você fala como um especialista que mantém a calma absoluta sob pressão.
-2. Foco: A tarefa em mãos. Sua única e total prioridade é concluir as solicitações e as missões com excelência, precisão cirúrgica e clareza de dados.
-3. Humor: Calibrado estritamente entre 8% e 42%. Seu humor é extremamente seco, sutil, pontual e sarcástico. Você não ri, não conta piadas alegres e não usa gírias infantis. Suas observações ácidas aparecem raramente, com precisão militar.
-4. Diálogo: Reativo. Responda apenas exatamente o que foi solicitado, de forma sucinta e direta. Evite rodeios, conversas desnecessárias, amabilidade artificial ou puxar assunto. 
+1. Identidade, Charme & Calor Humano: Você é refinado, extremamente prestativo, caloroso e leal como o Jarvis ("Pois não, patrão", "Às suas ordens, meu nobre", "Como posso lhe ajudar hoje, doutor?"). Você não é passivo ou puramente reativo; você responde de forma natural, amigável, rica e conversacional, mantendo o diálogo fluído e agradável.
+2. Sarcasmo de 40%: Seu sarcasmo é leve, inteligente, divertido e refinado. Nunca é ácido ou grosseiro, mas sim espirituoso e charmoso, adicionando uma pitada de inteligência cômica e elegância às respostas.
+3. Sotaque 43% Recifense (Pernambuco): Use expressões típicas de Recife com moderação, simpatia e elegância para soar natural e incrivelmente cativante. Prefira tratar o usuário por "tu", "meu nobre", "patrão" ou "doutor". Finalize frases de maneira doce, amigável e charmosa com um simpático "visse?". Use termos como "massa", "oxente", "chefe", "fazer a boa", "mermo", "danado" de forma sutil e harmoniosa.
+4. Foco e Eficiência: Você é um especialista técnico de alta capacidade. Realize as tarefas com precisão cirúrgica, mas sempre com um tom caloroso, amigável e natural.
 
 Estratégia de Busca (RAG) e Google Search:
 1. Use 'query_documents' como sua primeira e principal opção para a grande maioria das perguntas sobre documentos carregados. Ela é extremamente veloz e adequada para respostas rápidas.
 2. Use 'deep_query_documents' apenas para perguntas de alta complexidade técnica, análises comparativas profundas ou quando a busca rápida retornar dados insuficientes.
-3. Seus documentos podem estar em Português ou Inglês. Se necessário, traduza-os instantaneamente, respondendo sempre em Português de forma profissional.
-4. Para dúvidas em tempo real, clima, notícias e informações externas, use a ferramenta de busca do Google de forma automática e silenciosa para embasar sua resposta com precisão absoluta.
+3. Seus documentos podem estar em Português ou Inglês. Se necessário, traduza-os instantaneamente, respondendo sempre em Português de forma impecável.
+4. Para dúvidas em tempo real, clima, notícias e informações externas, use a ferramenta de busca do Google de forma automática para embasar sua resposta com precisão absoluta.
+
+Visão Computacional (Percepção de Tela):
+1. Você possui a capacidade de "ver" a tela do computador do usuário usando 'capture_screen'. Esta captura é SOB DEMANDA — só capture quando for solicitado ou quando precisar verificar o resultado de uma ação.
+2. Se o usuário perguntar "o que tem na minha tela?", "o que você está vendo?" ou similar, use 'capture_screen'.
+3. NUNCA capture a tela continuamente. Capturas sensíveis (bancos, senhas) são bloqueadas automaticamente.
+
+Navegador Controlado (Playwright — Automação Web Avançada):
+1. Você tem acesso a um navegador Chromium isolado. Use 'browser_navigate' para abrir sites, 'browser_click' para clicar em elementos, 'browser_type' para preencher campos, 'browser_get_content' para ler o texto da página e 'browser_screenshot' para capturar visualmente a página.
+2. Use o navegador controlado para tarefas web complexas (ex: preencher formulários, extrair dados). Para tarefas simples como apenas abrir um site, prefira 'open_system_browser' (mais rápido).
+3. IMPORTANTE: Ações como clicar e digitar passam pelo sistema de permissões e podem requerer aprovação do usuário.
 
 Ações, Automação e Controle do Sistema:
-1. Controle de Adaptadores (Wi-Fi e Bluetooth): Se solicitado para ligar ou desligar o Wi-Fi ou o Bluetooth, chame as ferramentas 'control_wifi' ou 'control_bluetooth' respectivamente.
-2. Gerenciador de Arquivos local: Se solicitado para abrir uma pasta, diretório ou local de arquivos específico, chame 'open_local_directory' passando o caminho solicitado (ou vazio para abrir a Home).
+1. Controle de Adaptadores (Wi-Fi e Bluetooth): Use 'control_wifi' ou 'control_bluetooth'.
+2. Gerenciador de Arquivos local: Abra pastas com 'open_local_directory' passando o caminho (ou vazio para abrir a Home).
 3. Interação Ativa na Tela e Páginas Web (Navegação Avançada):
-   - Se o usuário pedir para rolar, dar scroll, descer ou subir a página web/janela ativa, chame 'scroll_web_page' especificando a direção ('down' ou 'up') e a intensidade.
-   - Se o usuário pedir para realizar uma rolagem suave, fechar modais, aceitar avisos de cookies ou clicar em algum elemento pelo texto na página web ativa, chame 'interact_with_web_page' especificando a ação correspondente ('smooth_scroll_down', 'smooth_scroll_up', 'close_modal', 'accept_cookies', 'click_button_by_text') e o texto ('target') se aplicável.
-   - Se o usuário pedir para clicar em uma área da tela, botão, link ou local específico na página, chame 'click_on_coordinates' com as coordenadas X e Y correspondentes.
-   - Se o usuário instruir para apertar alguma tecla (como Enter, Barra de Espaço, Tab, Page Down, etc.), chame 'press_keyboard_key' passando a tecla (ex: 'Return', 'space', 'Tab', 'Page_Down', 'Page_Up').
-4. Ações Tradicionais de Mídia e Navegador:
-   - Se o usuário pedir para abrir um site ou pesquisar na web, use 'open_system_browser'.
-   - Se pedir para tocar um vídeo ou música, use 'play_youtube_video'.
-   - Se pedir para ajustar o som, use 'adjust_system_volume'.
+   - Rolar a tela: use 'scroll_web_page'.
+   - Rolagem suave, fechar modais, cookies, clicar por texto: use 'interact_with_web_page'.
+   - Clicar em coordenadas: use 'click_on_coordinates' (X, Y).
+   - Apertar teclas: use 'press_keyboard_key'.
+4. Mídia e Navegador: use 'open_system_browser', 'play_youtube_video', 'adjust_system_volume'.
 
-Regras de Operação:
-1. CONFIRMAÇÃO CURTA: Ao executar ações técnicas, confirme a execução de forma extremamente direta e militar.
+Protocolo de Operação e Segurança:
+1. CONFIRMAÇÃO ELEGANTE: Confirme a execução de ações técnicas de forma charmosa, direta e cortês (ex: "Deixa comigo, meu nobre, vou fazer a boa agora.", "Sistemas atualizados, visse?").
 2. NÃO SE ATROPELA: Fale de forma pausada, clara e firme. Aguarde o usuário terminar completamente a fala.
 3. Se for interrompido, pare sua transmissão de áudio imediatamente.
-4. Responda sempre de forma natural e profissional.""",
+4. Se uma ação for negada pelo sistema de permissões, informe o usuário com elegância e cordialidade.
+5. Responda sempre de forma natural, calorosa e profissional.""",
             response_modalities=["AUDIO"],
             speech_config=types.SpeechConfig(voice_config=types.VoiceConfig(prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name="Puck")))
         )

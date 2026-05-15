@@ -12,6 +12,16 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Módulos do Agente Multimodal
+try:
+    from src.permissions import PermissionManager
+    from src.vision import ScreenPerception
+    from src.browser_agent import WebOperatorAgent
+except ModuleNotFoundError:
+    from permissions import PermissionManager
+    from vision import ScreenPerception
+    from browser_agent import WebOperatorAgent
+
 import sys
 
 # Caminhos base (Suporte para executável empacotado em sistema de arquivos Read-Only como AppImage)
@@ -52,6 +62,11 @@ class ZeDasCoisasEngine:
                 
         self.retriever = self.vectorstore.as_retriever(search_kwargs={"k": 5})
         self.deep_retriever = self.vectorstore.as_retriever(search_kwargs={"k": 12})
+
+        # ── Módulos do Agente Multimodal ──
+        self.permissions = PermissionManager()
+        self.vision = ScreenPerception()
+        self.browser = WebOperatorAgent()
 
     def build_database(self):
         """
@@ -459,6 +474,58 @@ class ZeDasCoisasEngine:
 
         except Exception as e:
             return f"Erro ao realizar interação web: {e}"
+
+    # ── Ferramentas do Agente Multimodal ──────────────────────────────────────
+
+    def capture_screen(self) -> str:
+        """
+        Captura uma imagem da tela atual do computador do usuário para análise visual.
+        Use quando o usuário pedir para você "olhar" a tela ou quando precisar de feedback visual.
+        """
+        print("\n[AGENTE] 📸 Capturando tela sob demanda...")
+        jpeg_data = self.vision.capture_and_compress()
+        if jpeg_data is None:
+            return "Captura bloqueada: janela sensível detectada na tela (banco, senhas, etc). Por segurança, não posso ver a tela neste momento."
+        # Retorna informação sobre a captura (o frame real é enviado pelo main.py/app.py)
+        return f"Tela capturada com sucesso ({len(jpeg_data) // 1024}KB). Analisando o conteúdo visual..."
+
+    async def browser_navigate(self, url: str) -> str:
+        """
+        Navega para uma URL no navegador controlado do Zé.
+        Use para acessar sites, pesquisar informações ou realizar tarefas na web de forma controlada.
+        """
+        return await self.browser.browser_navigate(url)
+
+    async def browser_click(self, selector: str) -> str:
+        """
+        Clica em um elemento na página web do navegador controlado usando seletores CSS.
+        Exemplos de seletor: 'button.submit', '#login-btn', 'a[href="/about"]', 'text=Entrar'.
+        """
+        return await self.browser.browser_click(selector)
+
+    async def browser_type(self, selector: str, text: str) -> str:
+        """
+        Digita texto em um campo de formulário no navegador controlado.
+        Exemplos de seletor: 'input[name="email"]', '#search-box', 'textarea'.
+        """
+        return await self.browser.browser_type(selector, text)
+
+    async def browser_get_content(self) -> str:
+        """
+        Extrai o texto limpo da página web atual no navegador controlado.
+        Use para ler o conteúdo de uma página depois de navegar até ela.
+        """
+        return await self.browser.browser_get_content()
+
+    async def browser_screenshot(self) -> str:
+        """
+        Captura uma imagem da página web atual no navegador controlado.
+        Use para ver visualmente o estado da página.
+        """
+        screenshot = await self.browser.browser_screenshot()
+        if screenshot:
+            return f"Screenshot do navegador capturada ({len(screenshot) // 1024}KB)."
+        return "Erro ao capturar screenshot do navegador."
 
 # Teste rápido se rodado diretamente
 if __name__ == "__main__":
