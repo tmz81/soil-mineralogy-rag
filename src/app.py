@@ -150,19 +150,19 @@ async def list_documents():
 async def upload_documents(files: list[UploadFile] = File(...)):
     uploaded, errors = [], []
     
-    # Valida o limite de até 6 arquivos no total
+    # Valida o limite de até 5 arquivos no total
     current_files = [f for f in DOCS_DIR.iterdir() if f.suffix.lower() in [".pdf", ".docx", ".txt"]] if DOCS_DIR.exists() else []
-    if len(current_files) + len(files) > 6:
+    if len(current_files) + len(files) > 5:
         return {
             "uploaded": [],
-            "errors": [f"A biblioteca técnica suporta no máximo 6 documentos no total. Você já possui {len(current_files)} arquivo(s)."],
-            "message": "Limite de 6 documentos excedido."
+            "errors": [f"A biblioteca técnica suporta no máximo 5 documentos no total. Você já possui {len(current_files)} arquivo(s)."],
+            "message": "Limite de 5 documentos excedido."
         }
 
     for file in files:
         ext = Path(file.filename).suffix.lower()
         if ext not in [".pdf", ".docx", ".txt"]:
-            errors.append(f"'{file.filename}' não é um tipo suportado (.pdf, .docx, .txt).")
+            errors.append(f"O arquivo '{file.filename}' possui um formato incorreto. Apenas arquivos do tipo .pdf, .docx e .txt são aceitos.")
             continue
         try:
             content = await file.read()
@@ -213,15 +213,32 @@ async def database_status():
     db_exists = CHROMA_DIR.exists() and any(CHROMA_DIR.iterdir()) if CHROMA_DIR.exists() else False
     chunks = 0
     is_indexing = False
+    indexing_progress = 0.0
+    indexing_stage = "idle"
+    indexing_current_file = ""
     try:
         engine = await get_engine()
         is_indexing = getattr(engine, "is_indexing", False)
-        if db_exists and not is_indexing:
+        indexing_progress = getattr(engine, "indexing_progress", 0.0)
+        indexing_stage = getattr(engine, "indexing_stage", "idle")
+        indexing_current_file = getattr(engine, "indexing_current_file", "")
+        
+        if is_indexing:
+            chunks = getattr(engine, "indexing_processed_chunks", 0)
+        elif db_exists:
             chunks = engine.vectorstore._collection.count()
     except Exception:
         pass
     pdf_count = len([f for f in DOCS_DIR.iterdir() if f.suffix.lower() in [".pdf", ".docx", ".txt"]]) if DOCS_DIR.exists() else 0
-    return {"db_exists": db_exists, "chunks_indexed": chunks, "pdf_count": pdf_count, "is_indexing": is_indexing}
+    return {
+        "db_exists": db_exists,
+        "chunks_indexed": chunks,
+        "pdf_count": pdf_count,
+        "is_indexing": is_indexing,
+        "indexing_progress": indexing_progress,
+        "indexing_stage": indexing_stage,
+        "indexing_current_file": indexing_current_file
+    }
 
 
 # ─── Chat Endpoint ──────────────────────────────────────────────────────────

@@ -648,6 +648,7 @@ html, body {
 .toast.success { border-left: 3px solid var(--accent-emerald); }
 .toast.error { border-left: 3px solid var(--accent-rose); }
 .toast.info { border-left: 3px solid var(--accent-cyan); }
+.toast.warning { border-left: 3px solid var(--accent-amber); }
 
 @keyframes toastIn { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: translateX(0); } }
 @keyframes toastOut { to { opacity: 0; transform: translateX(40px); } }
@@ -735,4 +736,82 @@ html, body {
 @media (max-width: 800px) {
   .db-stats { grid-template-columns: 1fr; }
   .settings-grid { grid-template-columns: 1fr; }
+}
+
+/* ─── Custom Confirm Modal ──────────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(10, 11, 15, 0.8);
+  backdrop-filter: blur(12px);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: modalOverlayFadeIn 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.modal-card {
+  width: 90%;
+  max-width: 440px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-lg);
+  padding: 30px;
+  box-shadow: var(--shadow-card), 0 0 50px rgba(244, 63, 94, 0.1);
+  text-align: center;
+  animation: modalScaleIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.modal-icon {
+  font-size: 40px;
+  margin-bottom: 16px;
+  animation: modalPulseWarning 2s infinite;
+}
+
+.modal-title {
+  font-family: var(--font-sans);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+}
+
+.modal-message {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin-bottom: 24px;
+}
+
+.modal-message strong {
+  color: var(--accent-rose);
+}
+
+.modal-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.modal-actions .btn {
+  padding: 10px 20px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+@keyframes modalOverlayFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modalScaleIn {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes modalPulseWarning {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.1); text-shadow: 0 0 20px rgba(245, 158, 11, 0.4); }
+  100% { transform: scale(1); }
 }

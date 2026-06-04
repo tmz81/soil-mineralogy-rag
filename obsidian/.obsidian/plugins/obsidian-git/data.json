@@ -1,0 +1,17 @@
+{
+  "commitMessage": "vault backup: {{date}}",
+  "autoSaveInterval": 60,
+  "autoPushInterval": 60,
+  "autoPullInterval": 60,
+  "autoPullOnStart": true,
+  "syncMethod": "pullAndPush",
+  "gitPath": "",
+  "customMessageOnAutoBackup": false,
+  "autoBackupAfterFileChange": false,
+  "treeStructure": false,
+  "refreshSourceControl": true,
+  "basePath": "",
+  "differentAppearance": false,
+  "changedFilesInStatusBar": true,
+  "lastUpdate": 0
+}

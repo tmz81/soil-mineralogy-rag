@@ -45,10 +45,55 @@ function toast(message, type = 'info') {
   const container = document.getElementById('toast-container');
   const el = document.createElement('div');
   el.className = `toast ${type}`;
-  const icons = { success: '✅', error: '❌', info: 'ℹ️' };
+  const icons = { success: '✅', error: '❌', info: 'ℹ️', warning: '⚠️' };
   el.innerHTML = `<span>${icons[type] || ''}</span> ${message}`;
   container.appendChild(el);
   setTimeout(() => el.remove(), 4000);
+}
+
+// ─── Custom Confirm Dialog ──────────────────────────────────────────────────
+function showConfirm({ title, message, confirmText, isDestructive, onConfirm }) {
+  const modal = document.getElementById('custom-confirm-modal');
+  if (!modal) return;
+  
+  const titleEl = modal.querySelector('.modal-title');
+  const messageEl = modal.querySelector('.modal-message');
+  const cancelBtn = document.getElementById('confirm-modal-cancel');
+  const okBtn = document.getElementById('confirm-modal-ok');
+  const iconEl = modal.querySelector('.modal-icon');
+  
+  titleEl.textContent = title;
+  messageEl.innerHTML = message;
+  okBtn.textContent = confirmText || 'Confirmar';
+  
+  if (isDestructive) {
+    okBtn.className = 'btn btn-danger';
+    iconEl.textContent = '⚠️';
+  } else {
+    okBtn.className = 'btn btn-primary';
+    iconEl.textContent = '❓';
+  }
+  
+  modal.style.display = 'flex';
+  
+  const cleanup = () => {
+    modal.style.display = 'none';
+    const currentOk = document.getElementById('confirm-modal-ok');
+    const currentCancel = document.getElementById('confirm-modal-cancel');
+    const newOk = currentOk.cloneNode(true);
+    const newCancel = currentCancel.cloneNode(true);
+    currentOk.parentNode.replaceChild(newOk, currentOk);
+    currentCancel.parentNode.replaceChild(newCancel, currentCancel);
+  };
+  
+  document.getElementById('confirm-modal-cancel').addEventListener('click', () => {
+    cleanup();
+  });
+  
+  document.getElementById('confirm-modal-ok').addEventListener('click', () => {
+    cleanup();
+    if (onConfirm) onConfirm();
+  });
 }
 
 // ─── API Helper ─────────────────────────────────────────────────────────────
@@ -535,9 +580,16 @@ function initLibrary() {
   zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
   zone.addEventListener('drop', (e) => {
     e.preventDefault(); zone.classList.remove('dragover');
-    const files = Array.from(e.dataTransfer.files).filter(f => f.name.toLowerCase().endsWith('.pdf'));
-    if (files.length) uploadFiles(files);
-    else toast('Apenas arquivos PDF são aceitos', 'error');
+    const allowed = ['.pdf', '.docx', '.txt'];
+    const files = Array.from(e.dataTransfer.files).filter(f => {
+      const name = f.name.toLowerCase();
+      return allowed.some(ext => name.endsWith(ext));
+    });
+    if (files.length) {
+      uploadFiles(files);
+    } else {
+      toast('Nenhum arquivo compatível detectado. Apenas PDF, DOCX e TXT são permitidos.', 'warning');
+    }
   });
 }
 
@@ -547,14 +599,24 @@ async function selectFilesElectron() {
     if (!paths?.length) return;
     const formData = new FormData();
     const LIMIT = 200 * 1024 * 1024; // 200MB
+    const allowed = ['.pdf', '.docx', '.txt'];
+    
     for (const filePath of paths) {
+      const filename = filePath.split('/').pop().split('\\').pop();
+      const ext = filename.substring(filename.lastIndexOf('.')).toLowerCase();
+      
+      if (!allowed.includes(ext)) {
+        toast(`O arquivo "${filename}" possui formato inválido. Apenas PDF, DOCX e TXT são permitidos.`, 'warning');
+        return;
+      }
+      
       const res = await fetch(`file://${filePath}`);
       const blob = await res.blob();
       if (blob.size > LIMIT) {
-        toast(`O arquivo "${filePath.split('/').pop().split('\\').pop()}" excede o limite máximo permitido de 200 MB.`, 'error');
+        toast(`O arquivo "${filename}" excede o limite máximo de 200 MB e não pôde ser importado.`, 'warning');
         return;
       }
-      formData.append('files', blob, filePath.split('/').pop().split('\\').pop());
+      formData.append('files', blob, filename);
     }
     await uploadFormData(formData);
   } catch (err) { toast(`Erro: ${err.message}`, 'error'); }
@@ -563,9 +625,18 @@ async function selectFilesElectron() {
 async function uploadFiles(fileList) {
   const formData = new FormData();
   const LIMIT = 200 * 1024 * 1024; // 200MB
+  const allowed = ['.pdf', '.docx', '.txt'];
+  
   for (const file of fileList) {
+    const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+    
+    if (!allowed.includes(ext)) {
+      toast(`O arquivo "${file.name}" possui formato inválido. Apenas PDF, DOCX e TXT são permitidos.`, 'warning');
+      return;
+    }
+    
     if (file.size > LIMIT) {
-      toast(`O arquivo "${file.name}" excede o limite máximo permitido de 200 MB.`, 'error');
+      toast(`O arquivo "${file.name}" excede o limite máximo de 200 MB e não pôde ser importado.`, 'warning');
       return;
     }
     formData.append('files', file);
@@ -578,11 +649,10 @@ async function uploadFormData(formData) {
     const res = await fetch(`${BACKEND_URL}/api/upload`, { method: 'POST', body: formData });
     const data = await res.json();
     if (data.uploaded.length) {
-      toast(`${data.message} Reindexando...`, 'info');
+      toast(`${data.message} Iniciando indexação...`, 'info');
       await api('/api/index', { method: 'POST' });
-      toast('Biblioteca pronta e indexada!', 'success');
     }
-    if (data.errors.length) data.errors.forEach(e => toast(e, 'error'));
+    if (data.errors.length) data.errors.forEach(e => toast(e, 'warning'));
     loadDocuments();
     loadDbStatus();
   } catch (err) { toast(`Erro no upload: ${err.message}`, 'error'); }
@@ -595,32 +665,42 @@ async function loadDocuments() {
     const data = await api('/api/documents');
     countEl.textContent = `(${data.total})`;
     if (!data.documents.length) {
-      container.innerHTML = `<div class="empty-state"><div class="empty-icon">📭</div><div class="empty-text">Nenhum PDF carregado</div></div>`;
+      container.innerHTML = `<div class="empty-state"><div class="empty-icon">📭</div><div class="empty-text">Nenhum documento carregado</div></div>`;
       return;
     }
-    container.innerHTML = data.documents.map(doc => `
+    container.innerHTML = data.documents.map(doc => {
+      const ext = doc.name.substring(doc.name.lastIndexOf('.')).toLowerCase();
+      const emoji = ext === '.pdf' ? '📕' : ext === '.docx' ? '📘' : '📝';
+      return `
       <div class="doc-item">
-        <span class="doc-icon">📕</span>
+        <span class="doc-icon">${emoji}</span>
         <div class="doc-info">
           <div class="doc-name" title="${doc.name}">${doc.name}</div>
           <div class="doc-size">${doc.size_display}</div>
         </div>
         <button class="doc-delete" onclick="deleteDoc('${doc.name}')" title="Excluir">🗑️</button>
-      </div>`).join('');
+      </div>`;
+    }).join('');
   } catch {
-    container.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-text">Erro ao carregar</div></div>`;
+    container.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-text">Erro ao carregar documentos</div></div>`;
   }
 }
 
 async function deleteDoc(filename) {
-  if (!confirm(`Excluir "${filename}"?`)) return;
-  try {
-    await api('/api/delete', { method: 'POST', body: JSON.stringify({ filename }) });
-    toast(`"${filename}" excluído. Reindexando...`, 'info');
-    await api('/api/index', { method: 'POST' });
-    toast('Biblioteca atualizada e pronta!', 'success');
-    loadDocuments(); loadDbStatus();
-  } catch (err) { toast(`Erro: ${err.message}`, 'error'); }
+  showConfirm({
+    title: 'Excluir Documento?',
+    message: `Deseja realmente remover o arquivo <strong style="color: var(--accent-cyan);">${filename}</strong> da sua biblioteca técnica?<br><br>Isso removerá de forma permanente todos os trechos deste documento do banco de dados vetorial.`,
+    confirmText: '🗑️ Excluir',
+    isDestructive: true,
+    onConfirm: async () => {
+      try {
+        await api('/api/delete', { method: 'POST', body: JSON.stringify({ filename }) });
+        toast(`"${filename}" excluído. Iniciando indexação...`, 'info');
+        await api('/api/index', { method: 'POST' });
+        loadDocuments(); loadDbStatus();
+      } catch (err) { toast(`Erro: ${err.message}`, 'error'); }
+    }
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -664,19 +744,37 @@ function initSettings() {
 
   reindexBtn.addEventListener('click', async () => {
     reindexBtn.disabled = true; reindexBtn.innerHTML = '<span class="spinner"></span> Indexando...';
-    const pb = document.getElementById('index-progress');
-    pb.style.display = 'block'; pb.classList.add('indeterminate');
     try {
-      const res = await api('/api/index', { method: 'POST' });
-      toast(res.message, 'success'); loadDbStatus();
-    } catch (err) { toast(`Erro: ${err.message}`, 'error'); }
-    finally { reindexBtn.disabled = false; reindexBtn.innerHTML = '🔄 Reindexar Biblioteca'; pb.style.display = 'none'; pb.classList.remove('indeterminate'); }
+      await api('/api/index', { method: 'POST' });
+      toast('Iniciando indexação dos arquivos...', 'info');
+      loadDbStatus();
+    } catch (err) { 
+      toast(`Erro: ${err.message}`, 'error'); 
+      reindexBtn.disabled = false; 
+      reindexBtn.innerHTML = '🔄 Reindexar Biblioteca'; 
+    }
   });
 
-  resetDbBtn.addEventListener('click', async () => {
-    if (!confirm('Apagar todo o banco de dados vetorial?')) return;
-    try { await api('/api/reset-db', { method: 'POST' }); toast('Banco resetado', 'success'); loadDbStatus(); }
-    catch (err) { toast(`Erro: ${err.message}`, 'error'); }
+  resetDbBtn.addEventListener('click', () => {
+    showConfirm({
+      title: 'Resetar Banco de Dados?',
+      message: 'Atenção: Esta ação irá <strong>apagar permanentemente todas as informações e trechos indexados</strong> na sua biblioteca vetorial.<br><br>Você terá que reindexar seus documentos para poder conversar com o Zé novamente. Deseja continuar?',
+      confirmText: '🗑️ Sim, Apagar Tudo',
+      isDestructive: true,
+      onConfirm: async () => {
+        resetDbBtn.disabled = true; resetDbBtn.innerHTML = '<span class="spinner"></span> Resetando...';
+        try {
+          await api('/api/reset-db', { method: 'POST' });
+          toast('Banco de dados vetorial resetado com sucesso!', 'success');
+          loadDbStatus();
+        } catch (err) { 
+          toast(`Erro: ${err.message}`, 'error'); 
+        } finally {
+          resetDbBtn.disabled = false;
+          resetDbBtn.innerHTML = '🗑️ Resetar Banco';
+        }
+      }
+    });
   });
 }
 
@@ -694,15 +792,76 @@ async function loadDbStatus() {
     const data = await api('/api/db-status');
     document.getElementById('stat-pdfs').textContent = data.pdf_count;
     document.getElementById('stat-chunks').textContent = data.chunks_indexed;
+    
+    const pb = document.getElementById('index-progress');
+    const pbFill = pb ? pb.querySelector('.progress-fill') : null;
+    const details = document.getElementById('index-details');
+    const reindexBtn = document.getElementById('btn-reindex');
+    const resetDbBtn = document.getElementById('btn-reset-db');
+    
     if (data.is_indexing) {
-      document.getElementById('stat-status').textContent = '🔄 Indexando...';
+      const pct = Math.round(data.indexing_progress || 0);
+      document.getElementById('stat-status').textContent = pct > 0 ? `${pct}%` : '🔄...';
+      
+      // Update progress bar
+      if (pb && pbFill) {
+        pb.style.display = 'block';
+        pb.classList.remove('indeterminate');
+        pbFill.style.width = `${pct}%`;
+      }
+      
+      // Update details text
+      if (details) {
+        details.style.display = 'block';
+        let stageText = '';
+        if (data.indexing_stage === 'loading') {
+          stageText = `📂 Carregando arquivo: <br><strong style="color: var(--accent-cyan);">${data.indexing_current_file}</strong>`;
+        } else if (data.indexing_stage === 'splitting') {
+          stageText = `✂️ Dividindo arquivo em trechos: <br><strong style="color: var(--accent-cyan);">${data.indexing_current_file}</strong>`;
+        } else if (data.indexing_stage === 'embedding') {
+          stageText = `🧠 Indexando: <br><strong style="color: var(--accent-cyan);">${data.indexing_current_file}</strong><br><span style="font-size: 11px; opacity: 0.8;">(${data.chunks_indexed} trechos processados até agora)</span>`;
+        } else {
+          stageText = `🔄 Preparando indexação em segundo plano...`;
+        }
+        details.innerHTML = stageText;
+      }
+      
+      // Disable library buttons during indexation
+      if (reindexBtn) {
+        reindexBtn.disabled = true;
+        reindexBtn.innerHTML = '<span class="spinner"></span> Indexando...';
+      }
+      if (resetDbBtn) {
+        resetDbBtn.disabled = true;
+      }
     } else {
-      document.getElementById('stat-status').textContent = data.db_exists ? '🟢' : '🔴';
+      document.getElementById('stat-status').textContent = data.db_exists ? '🟢 Pronto' : '🔴 Vazio';
+      
+      // Hide progress elements
+      if (pb) pb.style.display = 'none';
+      if (details) {
+        details.style.display = 'none';
+        details.innerHTML = '';
+      }
+      
+      // Enable library buttons
+      if (reindexBtn) {
+        reindexBtn.disabled = false;
+        reindexBtn.innerHTML = '🔄 Reindexar Biblioteca';
+      }
+      if (resetDbBtn) {
+        resetDbBtn.disabled = false;
+      }
     }
 
     const micBtn = document.getElementById('btn-mic');
     if (micBtn) {
-      if (data.is_indexing || !data.db_exists || data.chunks_indexed === 0) {
+      if (isVoiceActive) {
+        // Mantém habilitado se houver conversa ativa para permitir parar a chamada
+        micBtn.disabled = false;
+        micBtn.style.opacity = '1';
+        micBtn.style.pointerEvents = 'auto';
+      } else if (data.is_indexing || !data.db_exists || data.chunks_indexed === 0) {
         micBtn.disabled = true;
         micBtn.style.opacity = '0.4';
         micBtn.style.pointerEvents = 'none';
@@ -714,5 +873,15 @@ async function loadDbStatus() {
         micBtn.title = 'Iniciar Conversação de Voz';
       }
     }
-  } catch { document.getElementById('stat-status').textContent = '⚠️'; }
+  } catch (err) { 
+    console.error(err);
+    document.getElementById('stat-status').textContent = '⚠️'; 
+    const micBtn = document.getElementById('btn-mic');
+    if (micBtn && !isVoiceActive) {
+      micBtn.disabled = true;
+      micBtn.style.opacity = '0.4';
+      micBtn.style.pointerEvents = 'none';
+      micBtn.title = 'Aguarde a inicialização do sistema para conversar.';
+    }
+  }
 }

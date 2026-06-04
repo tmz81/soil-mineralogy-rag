@@ -1,0 +1,10 @@
+# Obsidian internal files
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json
+.obsidian/graph.json
+.obsidian/appearance.json
+.obsidian/hotkeys.json
+
+# Cache and logs
+.trash/
+*.log

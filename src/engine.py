@@ -39,6 +39,10 @@ class MineralogyEngine:
             doc_count = 0
 
         self.is_indexing = False
+        self.indexing_progress = 0.0
+        self.indexing_stage = "idle"
+        self.indexing_current_file = ""
+        self.indexing_processed_chunks = 0
 
         if doc_count > 0:
             print(f"[SISTEMA] Banco de dados carregado com sucesso. {doc_count} trechos disponíveis.")
@@ -52,52 +56,99 @@ class MineralogyEngine:
 
     def build_database(self):
         """
-        Lê todos os PDFs, DOCXs e TXTs da pasta DOCS_PATH e reconstrói o banco de dados vetorial de forma assíncrona.
+        Lê todos os PDFs, DOCXs e TXTs da pasta DOCS_PATH e reconstrói o banco de dados vetorial de forma incremental
+        com monitoramento de progresso em tempo real.
         """
         self.is_indexing = True
+        self.indexing_progress = 0.0
+        self.indexing_stage = "loading"
+        self.indexing_current_file = ""
+        self.indexing_processed_chunks = 0
         try:
             from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader, TextLoader
             from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-            docs = []
             docs_dir = Path(DOCS_PATH)
-            if docs_dir.exists():
-                for f in sorted(docs_dir.iterdir()):
-                    ext = f.suffix.lower()
-                    if ext == ".pdf":
-                        try:
-                            docs.extend(PyPDFLoader(str(f)).load())
-                        except Exception as e:
-                            print(f"[ERRO] Falha ao carregar PDF {f.name}: {e}")
-                    elif ext == ".docx":
-                        try:
-                            docs.extend(Docx2txtLoader(str(f)).load())
-                        except Exception as e:
-                            print(f"[ERRO] Falha ao carregar DOCX {f.name}: {e}")
-                    elif ext == ".txt":
-                        try:
-                            docs.extend(TextLoader(str(f), encoding="utf-8").load())
-                        except Exception as e:
-                            print(f"[ERRO] Falha ao carregar TXT {f.name}: {e}")
-            
-            if not docs:
-                print(f"[SISTEMA] AVISO: Nenhum arquivo compatível encontrado na pasta '{DOCS_PATH}'. O banco de dados continuará vazio.")
+            if not docs_dir.exists():
+                self.indexing_stage = "idle"
+                self.is_indexing = False
                 return
+
+            valid_extensions = {".pdf", ".docx", ".txt"}
+            files_to_index = sorted([
+                f for f in docs_dir.iterdir()
+                if f.is_file() and f.suffix.lower() in valid_extensions
+            ])
+
+            if not files_to_index:
+                print(f"[SISTEMA] AVISO: Nenhum arquivo compatível encontrado na pasta '{DOCS_PATH}'.")
+                self.indexing_stage = "idle"
+                self.is_indexing = False
+                return
+
+            total_files = len(files_to_index)
+            text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+
+            for idx, f in enumerate(files_to_index):
+                self.indexing_current_file = f.name
+                base_progress = (idx / total_files) * 100.0
+                next_base_progress = ((idx + 1) / total_files) * 100.0
+                
+                self.indexing_stage = "loading"
+                self.indexing_progress = base_progress + (0.1 * (next_base_progress - base_progress))
+                
+                print(f"[INDEXADOR] ({idx+1}/{total_files}) Carregando {f.name}...")
+                
+                file_docs = []
+                ext = f.suffix.lower()
+                try:
+                    if ext == ".pdf":
+                        file_docs = PyPDFLoader(str(f)).load()
+                    elif ext == ".docx":
+                        file_docs = Docx2txtLoader(str(f)).load()
+                    elif ext == ".txt":
+                        file_docs = TextLoader(str(f), encoding="utf-8").load()
+                except Exception as e:
+                    print(f"[ERRO] Falha ao carregar {f.name}: {e}")
+                    continue
+
+                if not file_docs:
+                    continue
+
+                self.indexing_stage = "splitting"
+                self.indexing_progress = base_progress + (0.2 * (next_base_progress - base_progress))
+                splits = text_splitter.split_documents(file_docs)
+                
+                if not splits:
+                    continue
+
+                print(f"[INDEXADOR] Dividido em {len(splits)} trechos. Gerando embeddings e inserindo no banco...")
+                
+                self.indexing_stage = "embedding"
+                batch_size = 50
+                total_splits = len(splits)
+                
+                for batch_idx in range(0, total_splits, batch_size):
+                    batch = splits[batch_idx:batch_idx + batch_size]
+                    self.vectorstore.add_documents(batch)
+                    self.indexing_processed_chunks += len(batch)
+                    
+                    # Fração de embedding do arquivo atual
+                    emb_fraction = min(1.0, (batch_idx + len(batch)) / total_splits)
+                    
+                    # O embedding ocupa os 80% restantes da fatia de progresso deste arquivo
+                    file_weight = next_base_progress - base_progress
+                    current_file_progress = base_progress + file_weight * (0.2 + 0.8 * emb_fraction)
+                    self.indexing_progress = min(99.9, current_file_progress)
             
-            # Ajuste de tamanho de chunk de 1000 para 500 para aumentar o número total de trechos (alcançando 15 mil)
-            text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=100)
-            splits = text_splitter.split_documents(docs)
-            
-            self.vectorstore = Chroma.from_documents(
-                documents=splits, 
-                embedding=self.embeddings, 
-                persist_directory=DB_PATH
-            )
+            self.indexing_progress = 100.0
+            self.indexing_stage = "completed"
             self.retriever = self.vectorstore.as_retriever(search_kwargs={"k": 5})
             self.deep_retriever = self.vectorstore.as_retriever(search_kwargs={"k": 12})
-            print(f"[SISTEMA] Sucesso! {len(splits)} trechos foram indexados em segundo plano.")
+            print(f"[SISTEMA] Sucesso! {self.indexing_processed_chunks} trechos foram indexados incrementalmente.")
         except Exception as e:
-            print(f"[ERRO SENSORIAL] Falha na indexação em segundo plano: {e}")
+            self.indexing_stage = "error"
+            print(f"[ERRO SENSORIAL] Falha na indexação: {e}")
         finally:
             self.is_indexing = False
 
