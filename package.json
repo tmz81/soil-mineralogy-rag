@@ -8,6 +8,7 @@
     "build:linux": "npm --prefix desktop run build:linux",
     "build:win": "npm --prefix desktop run build:win",
     "build:mac": "npm --prefix desktop run build:mac",
-    "postinstall": "npm install --prefix desktop"
+    "postinstall": "npm install --prefix desktop",
+    "git-commit": "python scripts/git_ai_commit.py"
   }
 }

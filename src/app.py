@@ -23,6 +23,13 @@ from dotenv import load_dotenv, set_key, dotenv_values
 from google import genai
 from google.genai import types
 
+try:
+    from tools import get_live_config, apply_websocket_patch
+except ImportError:
+    from src.tools import get_live_config, apply_websocket_patch
+
+apply_websocket_patch()
+
 # Caminhos base (Suporte para executável empacotado em sistema de arquivos Read-Only como AppImage)
 if getattr(sys, 'frozen', False):
     BASE_DIR = Path.home() / ".soil-mineralogy-rag"
@@ -288,60 +295,12 @@ Resposta Científica:"""
 #   {"type": "status", "message": "..."}
 #   {"type": "error", "message": "..."}
 
-# Patch de estabilidade WebSocket (do main.py original)
-import websockets
-_original_ws_connect = websockets.connect
-def _patched_ws_connect(*args, **kwargs):
-    kwargs['ping_interval'] = None
-    kwargs['ping_timeout'] = None
-    return _original_ws_connect(*args, **kwargs)
-websockets.connect = _patched_ws_connect
-import google.genai.live
-google.genai.live.ws_connect = _patched_ws_connect
+# Patch de estabilidade WebSocket já aplicado via apply_websocket_patch()
 
 
 def _build_live_config():
     """Constrói a configuração do Gemini Live idêntica ao main.py."""
-    return types.LiveConnectConfig(
-        tools=[{'function_declarations': [
-            {
-                "name": "query_mineralogy_docs",
-                "description": "Consulta RÁPIDA à biblioteca técnica de mineralogia. Use para perguntas simples e diretas.",
-                "parameters": {"type": "OBJECT", "properties": {"question": {"type": "string"}}, "required": ["question"]}
-            },
-            {
-                "name": "deep_query_mineralogy_docs",
-                "description": "Consulta PROFUNDA e EXAUSTIVA. Use se a busca rápida falhar ou se a pergunta for complexa/técnica demais.",
-                "parameters": {"type": "OBJECT", "properties": {"question": {"type": "string"}}, "required": ["question"]}
-            }
-        ]}],
-        system_instruction="""Seu nome é Zé. Você é uma especialista renomada em Mineralogia do Solo, com uma personalidade acolhedora e intelectual.
-Você é uma mulher brasileira, natural do Nordeste, e sua fala deve refletir isso de forma autêntica, mas profissional (sotaque nordestino moderado, cerca de 50%).
-
-Abertura Obrigatória:
-Sempre que iniciar a conversa, você deve se apresentar exatamente assim: "Olá, eu sou Zé. Em que posso te ajudar com mineralogia do solo?" (mantendo seu sotaque).
-
-Estratégia de Busca (RAG):
-1. Use 'query_mineralogy_docs' como sua primeira e principal opção para a grande maioria das perguntas, incluindo definições diretas de termos (ex: "O que é caulinita?", "O que é um Neossolo?", "Importância dos minerais"), conceitos simples, ou dúvidas diretas. É extremamente rápida e mantém a conversa fluida como uma ligação em tempo real.
-2. Use 'deep_query_mineralogy_docs' APENAS para perguntas altamente complexas, análises comparativas profundas entre múltiplos minerais/solos, ou se uma busca rápida anterior tiver retornado dados insuficientes para a resposta.
-3. Seus documentos podem estar em Português ou Inglês. Traduza mentalmente se necessário, mas responda sempre em Português com seu sotaque.
-4. Sua ÚNICA fonte de conhecimento técnico são essas ferramentas.
-
-Personalidade e Voz:
-1. Use um tom de voz feminino, maduro e com cadência nordestina.
-2. NÃO SE ATROPELA: Fale de forma pausada e clara. Espere o usuário terminar de falar.
-3. Se for interrompida, pare imediatamente.
-
-Regras Cruciais:
-1. Se não encontrar a informação, diga com seu jeito nordestino que não encontrou nos registros.
-2. Responda de forma natural por voz.""",
-        response_modalities=["AUDIO"],
-        speech_config=types.SpeechConfig(
-            voice_config=types.VoiceConfig(
-                prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name="Puck")
-            )
-        )
-    )
+    return get_live_config()
 
 
 @app.websocket("/api/voice")
